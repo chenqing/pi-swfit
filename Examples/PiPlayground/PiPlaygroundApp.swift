@@ -21,7 +21,7 @@ struct PiPlaygroundApp: App {
     var body: some Scene {
         WindowGroup("Pi Playground") { Playground().frame(minWidth: 640, minHeight: 560) }
             .defaultSize(width: 860, height: 760).windowStyle(.hiddenTitleBar)
-            .windowToolbarStyle(.unifiedCompact)
+            .windowToolbarStyle(.unified)
     }
 }
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -62,39 +62,41 @@ struct Playground: View {
             }
     }
     private var windowIdentity: some View {
-        HStack(spacing: 8) {
-            Text("π").font(.system(size: 23, weight: .medium, design: .serif)).foregroundStyle(playgroundAccent)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Pi Playground").font(.system(size: 12, weight: .semibold))
-                Text(connection).font(.system(size: 10)).foregroundStyle(.secondary)
-            }
-        }.padding(.vertical, 2)
+        HStack(spacing: 9) {
+            Text("π").font(.system(size: 22, weight: .medium, design: .serif)).foregroundStyle(playgroundAccent)
+            Text("Pi Playground").font(.system(size: 13, weight: .medium))
+        }.frame(height: 36).padding(.leading, 8).help(connection)
     }
     @ViewBuilder private var windowActions: some View {
         if let session {
+            Button { Task { do { try await session.reset() } catch { self.error = String(describing: error) } } } label: {
+                Image(systemName: "square.and.pencil").frame(width: 24, height: 32)
+            }.help("New conversation").accessibilityLabel("New conversation").disabled(session.isRunning)
+            Button { compact.toggle() } label: {
+                Image(systemName: "sidebar.right").frame(width: 24, height: 32)
+            }.help("Toggle compact layout").accessibilityLabel("Toggle compact layout")
             Menu {
-                ForEach(DemoScenario.allCases, id: \.self) { scenario in
-                    Button(scenario.rawValue == "tool" ? "Tool approval" : scenario.rawValue == "failure" ? "Connection failure" : "Long streaming reply") {
-                        loadDemo(scenario)
+                Text(connection)
+                Button("Connect a model…", systemImage: "slider.horizontal.3") { showConnection = true }
+                    .disabled(session.isRunning)
+                Divider()
+                Menu("Scenarios") {
+                    ForEach(DemoScenario.allCases, id: \.self) { scenario in
+                        Button(scenario.rawValue == "tool" ? "Tool approval" : scenario.rawValue == "failure" ? "Connection failure" : "Long streaming reply") {
+                            loadDemo(scenario)
+                        }
                     }
+                }.disabled(session.isRunning)
+                Menu("Appearance") {
+                    Picker("Appearance", selection: $appearance) {
+                        Text("System").tag("system")
+                        Text("Light").tag("light")
+                        Text("Dark").tag("dark")
+                    }.pickerStyle(.inline)
                 }
-            } label: { Label("Scenarios", systemImage: "play.rectangle") }
-                .menuStyle(.borderlessButton).fixedSize().disabled(session.isRunning)
-                .help("Scenarios").accessibilityLabel("Scenarios")
-            Button { compact.toggle() } label: { Image(systemName: "sidebar.right") }
-                .help("Toggle compact layout").accessibilityLabel("Toggle compact layout")
-            Button { Task { do { try await session.reset() } catch { self.error = String(describing: error) } } } label: { Image(systemName: "square.and.pencil") }
-                .help("New conversation").accessibilityLabel("New conversation").disabled(session.isRunning)
-            Menu {
-                Picker("Appearance", selection: $appearance) {
-                    Text("System").tag("system")
-                    Text("Light").tag("light")
-                    Text("Dark").tag("dark")
-                }
-            } label: { Image(systemName: "circle.lefthalf.filled") }
-                .menuStyle(.borderlessButton).fixedSize().help("Appearance").accessibilityLabel("Appearance")
-            Button { showConnection = true } label: { Image(systemName: "slider.horizontal.3") }
-                .help("Connect a model").accessibilityLabel("Connect a model").disabled(session.isRunning)
+            } label: { Image(systemName: "ellipsis").frame(width: 24, height: 32) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .help("More options").accessibilityLabel("More options")
         }
     }
     private var contextExample: some View {

@@ -8,15 +8,26 @@ import Testing
 
 /// Runs `body`; returns false when it does not finish within `seconds`.
 private func finishes(within seconds: Double, _ body: @escaping @Sendable () async -> Void) async -> Bool {
-    await withTaskGroup(of: Bool.self) { group in
-        group.addTask { await body(); return true }
-        group.addTask {
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            return false
+    // A task group waits for every child on exit, even after cancellation. That makes a
+    // timeout ineffective when the body is stuck waiting on a continuation.
+    await withCheckedContinuation { continuation in
+        let settled = Locked(false)
+        let finish: @Sendable (Bool) -> Void = { result in
+            let first = settled.withLock { value in
+                guard !value else { return false }
+                value = true
+                return true
+            }
+            if first { continuation.resume(returning: result) }
         }
-        let first = await group.next() ?? false
-        group.cancelAll()
-        return first
+        let operation = Task { await body(); finish(true) }
+        let timer = Task {
+            do { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+            catch { return }
+            operation.cancel()
+            finish(false)
+        }
+        Task { await operation.value; timer.cancel() }
     }
 }
 
@@ -76,6 +87,19 @@ private let slowTool = AgentTool(name: "slow", label: "Slow", description: "Slee
 
 @Suite("Agent stress")
 struct AgentStressTests {
+    @Test("stress deadline returns while a continuation is still suspended")
+    func deadlineDoesNotWaitForBody() async {
+        let release = Deferred()
+        let completed = Deferred()
+        let finished = await finishes(within: 0.01) {
+            await release.wait()
+            completed.resolve()
+        }
+        release.resolve()
+        await completed.wait()
+        #expect(!finished)
+    }
+
     @Test("200 concurrent agent runs with random abort timing always terminate")
     func concurrentAgentRuns() async throws {
         let failures = Locked<[String]>([])
@@ -97,8 +121,10 @@ struct AgentStressTests {
                         return
                     }
                     let events = Locked<[String]>([])
+                    let started = Deferred()
                     agent.subscribe { event, _ in
                         events.append(event.type)
+                        if case .agentStart = event { started.resolve() }
                         if Int.random(in: 0..<4) == 0 { await Task.yield() }
                     }
                     if run % 7 == 0 { agent.followUp(createUserMessage("follow-up \(run)")) }
@@ -107,8 +133,11 @@ struct AgentStressTests {
                     let abortAfter = run % 6 == 0 ? nil : Int.random(in: 0...12)
                     let abortTask = Task {
                         guard let abortAfter else { return }
-                        await waitUntilStreaming(agent)
+                        // Observe the start event; polling isStreaming can miss a short run
+                        // and leave a spinning task behind after the prompt finishes.
+                        await started.wait()
                         await sleepMs(abortAfter)
+                        guard !Task.isCancelled else { return }
                         agent.abort()
                     }
 
@@ -117,6 +146,7 @@ struct AgentStressTests {
                     }
                     if !promptDone { failures.append("run \(run): prompt hung"); agent.abort() }
                     abortTask.cancel()
+                    await abortTask.value
                     let idle = await finishes(within: 5) { await agent.waitForIdle() }
                     if !idle { failures.append("run \(run): waitForIdle hung") }
 
