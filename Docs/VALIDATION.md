@@ -6,6 +6,7 @@ Environment: Apple Silicon macOS, Apple Swift 6.4, deployment target macOS 14. T
 - `scripts/smoke-cli.py`: version, unsupported flags, stdin, no-session mode, disk session continuation, JSONL event shape, failure exit status and a loopback OpenAI-compatible SSE → read tool → final response passed.
 - Release `pf` build and offline execution verified locally.
 - Playground native checks: empty state, Cmd-Return submission, tool approval and rejection, expandable tool detail, stopping with partial text retained, compact layout, light/dark appearance, model configuration sheet, manual scrolling and return-to-latest. Scroll observation uses native NSScrollView metrics so offscreen SwiftUI content does not reset follow state.
+- Presentation refinement: unified native toolbar, 12 pt transcript top inset, trailing user bubbles, paragraph spacing, compact expandable tool rows, one-line growing composer, compact/dark layouts and full-screen transition inspected in the native Playground.
 - Scoped source export inspected for private credential patterns and personal absolute paths; no matches in exported source. Build caches, local sessions and Pagie application data are excluded.
 
 Not validated: paid/live provider calls, real OAuth accounts, iOS UI, Intel hardware, full VoiceOver traversal, Chinese IME composition, packaged/notarized distribution, or a new run of the historical official MCP conformance suite.

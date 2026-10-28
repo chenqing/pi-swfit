@@ -18,8 +18,8 @@ public struct ConversationView<MessageContent: View>: View {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 28) {
-                            if session.messages.isEmpty { emptyState.padding(.top, 54) }
+                        VStack(alignment: .leading, spacing: 18) {
+                            if session.messages.isEmpty { emptyState.padding(.top, 36) }
                             ForEach(session.displayedMessages) { message in renderMessage(message).id(message.id) }
                             if session.isRunning && session.approvals.pending.isEmpty {
                                 HStack(spacing: 8) {
@@ -28,7 +28,7 @@ public struct ConversationView<MessageContent: View>: View {
                                 }
                             }
                             Color.clear.frame(height: 1).id("bottom")
-                        }.padding(24).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+                        }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 24).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
                             .background(ScrollMetrics { remaining, movedUp in
                                 distance = remaining
                                 if movedUp { followsBottom = false }

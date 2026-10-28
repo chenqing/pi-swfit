@@ -11,13 +11,11 @@ public struct Composer: View {
         _text = text; self.isRunning = isRunning; self.send = send; self.stop = stop
     }
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Ask something…", text: $text, axis: .vertical)
-                .textFieldStyle(.plain).font(theme.bodyFont).lineLimit(2...8).focused($focused).accessibilityLabel("Message")
-            HStack {
-                Text(isRunning ? "You can prepare your next message" : "⌘ Return to send")
-                    .font(.system(size: 11)).foregroundStyle(.tertiary)
-                Spacer()
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .bottom, spacing: 12) {
+                TextField("Ask something…", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain).font(theme.bodyFont).lineLimit(1...8)
+                    .focused($focused).accessibilityLabel("Message").padding(.vertical, 7)
                 if isRunning {
                     Button(action: stop) { Image(systemName: "stop.fill").frame(width: 10, height: 18) }
                         .buttonStyle(ChatButtonStyle()).help("Stop generation").accessibilityLabel("Stop generation")
@@ -27,9 +25,14 @@ public struct Composer: View {
                         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .help("Send message").accessibilityLabel("Send message")
                 }
-            }
-        }.padding(16).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: theme.cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius).strokeBorder(focused ? theme.accent.opacity(0.45) : Color.primary.opacity(0.10), lineWidth: 1))
-            .animation(.easeOut(duration: 0.15), value: focused)
+            }.padding(.leading, 16).padding(.trailing, 8).padding(.vertical, 8)
+                .background(.background, in: RoundedRectangle(cornerRadius: theme.cornerRadius + 2))
+                .overlay(RoundedRectangle(cornerRadius: theme.cornerRadius + 2)
+                    .strokeBorder(focused ? theme.accent.opacity(0.45) : Color.primary.opacity(0.12), lineWidth: 1))
+                .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
+                .animation(.easeOut(duration: 0.15), value: focused)
+            Text(isRunning ? "You can prepare your next message" : "⌘ Return to send")
+                .font(.system(size: 10)).foregroundStyle(.tertiary).padding(.horizontal, 4)
+        }
     }
 }

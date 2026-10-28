@@ -21,6 +21,7 @@ struct PiPlaygroundApp: App {
     var body: some Scene {
         WindowGroup("Pi Playground") { Playground().frame(minWidth: 640, minHeight: 560) }
             .defaultSize(width: 860, height: 760).windowStyle(.hiddenTitleBar)
+            .windowToolbarStyle(.unifiedCompact)
     }
 }
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -39,38 +40,6 @@ struct Playground: View {
     @State private var appearance = "system"
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Text("π").font(.system(size: 25, weight: .medium, design: .serif)).foregroundStyle(playgroundAccent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Pi Playground").font(.system(size: 13, weight: .semibold))
-                    Text(connection).font(.system(size: 11)).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if let session {
-                    Menu {
-                        ForEach(DemoScenario.allCases, id: \.self) { scenario in
-                            Button(scenario.rawValue == "tool" ? "Tool approval" : scenario.rawValue == "failure" ? "Connection failure" : "Long streaming reply") {
-                                loadDemo(scenario)
-                            }
-                        }
-                    } label: { Label("Scenarios", systemImage: "play.rectangle") }
-                        .menuStyle(.borderlessButton).fixedSize().disabled(session.isRunning)
-                    Button { compact.toggle() } label: { Image(systemName: "sidebar.right") }
-                        .help("Toggle compact layout").accessibilityLabel("Toggle compact layout")
-                    Button { Task { do { try await session.reset() } catch { self.error = String(describing: error) } } } label: { Image(systemName: "square.and.pencil") }
-                        .help("New conversation").accessibilityLabel("New conversation").disabled(session.isRunning)
-                    Menu {
-                        Picker("Appearance", selection: $appearance) {
-                            Text("System").tag("system")
-                            Text("Light").tag("light")
-                            Text("Dark").tag("dark")
-                        }
-                    } label: { Image(systemName: "circle.lefthalf.filled") }
-                        .menuStyle(.borderlessButton).fixedSize().help("Appearance").accessibilityLabel("Appearance")
-                    Button { showConnection = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .help("Connect a model").accessibilityLabel("Connect a model").disabled(session.isRunning)
-                }
-            }.buttonStyle(.plain).padding(.horizontal, 26).padding(.top, 30).padding(.bottom, 14)
             if let session {
                 HStack(spacing: 0) {
                     if compact { contextExample.frame(maxWidth: .infinity, maxHeight: .infinity) }
@@ -78,6 +47,12 @@ struct Playground: View {
                 }
             } else if let error { Text(error).padding() }
         }.background(Color(nsColor: .textBackgroundColor))
+            .toolbar {
+                ToolbarItem(placement: .navigation) { windowIdentity }
+                ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
+                ToolbarItemGroup(placement: .primaryAction) { windowActions.buttonStyle(.plain) }
+            }
+            .toolbarBackground(.hidden, for: .windowToolbar)
             .chatTheme(ChatTheme(accent: playgroundAccent, accentForeground: playgroundOnAccent))
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
             .task { if session == nil { loadDemo(.tool) } }
@@ -85,6 +60,42 @@ struct Playground: View {
                 ConnectionSheet { newSession, name in session = newSession; connection = name }
                     .chatTheme(ChatTheme(accent: playgroundAccent, accentForeground: playgroundOnAccent))
             }
+    }
+    private var windowIdentity: some View {
+        HStack(spacing: 8) {
+            Text("π").font(.system(size: 23, weight: .medium, design: .serif)).foregroundStyle(playgroundAccent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Pi Playground").font(.system(size: 12, weight: .semibold))
+                Text(connection).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        }.padding(.vertical, 2)
+    }
+    @ViewBuilder private var windowActions: some View {
+        if let session {
+            Menu {
+                ForEach(DemoScenario.allCases, id: \.self) { scenario in
+                    Button(scenario.rawValue == "tool" ? "Tool approval" : scenario.rawValue == "failure" ? "Connection failure" : "Long streaming reply") {
+                        loadDemo(scenario)
+                    }
+                }
+            } label: { Label("Scenarios", systemImage: "play.rectangle") }
+                .menuStyle(.borderlessButton).fixedSize().disabled(session.isRunning)
+                .help("Scenarios").accessibilityLabel("Scenarios")
+            Button { compact.toggle() } label: { Image(systemName: "sidebar.right") }
+                .help("Toggle compact layout").accessibilityLabel("Toggle compact layout")
+            Button { Task { do { try await session.reset() } catch { self.error = String(describing: error) } } } label: { Image(systemName: "square.and.pencil") }
+                .help("New conversation").accessibilityLabel("New conversation").disabled(session.isRunning)
+            Menu {
+                Picker("Appearance", selection: $appearance) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+            } label: { Image(systemName: "circle.lefthalf.filled") }
+                .menuStyle(.borderlessButton).fixedSize().help("Appearance").accessibilityLabel("Appearance")
+            Button { showConnection = true } label: { Image(systemName: "slider.horizontal.3") }
+                .help("Connect a model").accessibilityLabel("Connect a model").disabled(session.isRunning)
+        }
     }
     private var contextExample: some View {
         VStack(alignment: .leading, spacing: 22) {

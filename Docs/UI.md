@@ -50,3 +50,7 @@ ConversationView(session: session) { message in
 ## First release limits
 
 No attachment upload, image message view, reference/question components, persisted UI history, branches or PiCodingAgent-specific compaction/retry presentation yet. Inline Markdown is supported; full block Markdown is a renderer extension point. VoiceOver and real Chinese IME composition require additional validation. The package's iOS platform declaration is inherited from the runtime and is not a claim that the complete UI/CLI works on iOS.
+
+## Presentation
+
+The Playground combines its title and actions in one native compact window toolbar. Conversation content starts 12 pt below the toolbar. User text sits in a trailing, content-sized bubble; assistant text uses an unboxed paragraph layout. Tool rows disclose details on demand. Copy is available on hover, through the context menu, and as an accessibility action. The composer starts at one line and expands up to eight; approval arguments fit their content up to a scrollable 100 pt limit. The same session can switch between full-width and 440 pt companion layouts.
