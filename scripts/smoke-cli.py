@@ -16,6 +16,8 @@ with tempfile.TemporaryDirectory(prefix='pf-smoke-') as temporary:
     fixture = directory / 'fixture.txt'
     fixture.write_text('local fixture content')
     env = dict(os.environ, PF_AGENT_DIR=str(directory/'agent'), OPENAI_API_KEY='local-fixture-only')
+    env.pop('PF_MODEL', None)
+    env.pop('PF_API_KEY', None)
     def run(*args, code=0, input=''):
         p = subprocess.run([pf, *args], input=input, text=True, capture_output=True, cwd=directory, env=env, timeout=20)
         assert p.returncode == code, (args, p.returncode, p.stderr, p.stdout)
@@ -62,8 +64,19 @@ with tempfile.TemporaryDirectory(prefix='pf-smoke-') as temporary:
         events = [json.loads(line) for line in json_run.stdout.splitlines()]
         assert any(e['type']=='tool_execution_end' and not e['isError'] for e in events)
         assert any(e['type']=='message_end' and e['message'].get('role')=='assistant' for e in events)
+        # The same routing file is written by Playground; batch automation can supply an explicit key.
+        profile = {'id':'saved-fixture','name':'Saved fixture','modelID':'fixture','api':'openai-completions',
+                   'endpoint':f'http://127.0.0.1:{server.server_port}/v1','provider':'custom'}
+        (directory/'agent/connections.json').write_text(json.dumps({'profiles':[profile],'defaultID':'saved-fixture'}))
+        env['PF_API_KEY'] = 'local-fixture-only'
+        assert 'Saved fixture' in run('--list-connections').stdout
+        assert run('--connection','Saved fixture','--tools','read','-p','read fixture').stdout.strip() == 'fixture-ok'
+        assert run('--continue','--tools','read','-p','continue fixture').stdout.strip() == 'fixture-ok'
+        for file in (directory/'agent').rglob('*.json*'):
+            assert 'local-fixture-only' not in file.read_text()
+        env.pop('PF_API_KEY')
         failing = base.copy(); failing[failing.index('--model')+1] = 'failure'
         assert 'fixture unauthorized' in run(*failing,'-p','fail',code=1).stderr
     finally:
         server.shutdown(); server.server_close()
-print('pf smoke: help/version, session resume, stdin, JSONL, real local SSE + read tool, and nonzero failure exit passed')
+print('pf smoke: help/version, session resume, stdin, JSONL, real local SSE + read tool, saved connections, and nonzero failure exit passed')

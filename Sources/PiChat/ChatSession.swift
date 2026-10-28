@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import PiAI
 import PiAgent
+import PiCodingAgent
+import PiHost
 
 /// Main-actor presentation adapter. The Agent owns the model transcript; the UI owns no provider state.
 @MainActor @Observable
@@ -21,8 +23,13 @@ public final class ChatSession {
     }
     public var draft = ""
     public let approvals: ApprovalCenter
-    public var isRunning: Bool { state == .running || state == .stopping }
-    @ObservationIgnored private let agent: Agent
+    public var isRunning: Bool { active }
+    public var sessionFile: String? { codingHost?.manager.getSessionFile() }
+    public var workspace: String? { codingHost?.cwd }
+    public var connectionID: String? { codingHost?.connectionID }
+    private var active = false
+    @ObservationIgnored private var codingHost: CodingSessionHost?
+    @ObservationIgnored private var agent: Agent
     @ObservationIgnored private var assistantID: UUID?
 
     public init(options: AgentOptions, approvalPolicy: ChatApprovalPolicy = .always) throws {
@@ -48,7 +55,7 @@ public final class ChatSession {
     public func send(_ text: String? = nil) async {
         let input = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty, !isRunning else { return }
-        draft = ""; error = nil; state = .running; assistantID = nil
+        draft = ""; error = nil; state = .running; active = true; assistantID = nil
         approvals.reset()
         messages.append(ChatMessage(role: .user, text: input))
         let unsubscribe = agent.subscribe { [weak self] event, _ in await self?.receive(event) }
@@ -57,36 +64,114 @@ public final class ChatSession {
             if state == .running { state = .completed }
             if state == .stopping { state = .cancelled }
             finishPendingTools()
+            active = false
         }
         await withTaskCancellationHandler {
             do {
-                try await agent.prompt(input)
+                if let codingHost { try await codingHost.session.prompt(input) }
+                else { try await agent.prompt(input) }
             } catch {
                 if state == .stopping || Task.isCancelled { state = .cancelled }
                 else { self.error = String(describing: error); state = .failed }
             }
-        } onCancel: { [agent] in agent.abort() }
+        } onCancel: { [agent, codingHost] in
+            agent.abort()
+            if let codingHost { Task { await codingHost.session.abort() } }
+        }
         if Task.isCancelled { state = .cancelled }
     }
 
     /// Cancels the current request. Completed tool effects are never rolled back or automatically replayed.
     public func stop() {
-        guard state == .running else { return }
+        guard active, state != .stopping else { return }
         state = .stopping
         agent.abort()
+        if let codingHost { Task { await codingHost.session.abort() } }
         approvals.cancelAll()
     }
 
     public func reset() async throws {
         guard !isRunning else { return }
-        try await agent.reset()
+        if let old = codingHost {
+            let next = try await old.newConversation()
+            codingHost = next; agent = next.session.agent
+            await old.shutdown()
+        } else { try await agent.reset() }
         messages = []; draft = ""; error = nil; state = .idle; assistantID = nil
         approvals.reset()
+    }
+
+    /// Opens an upstream coding session with explicit per-call approval and disk persistence.
+    public static func openCoding(cwd inputCwd: String, profile: ConnectionProfile, store: ConnectionStore,
+                                  sessionFile: String? = nil, streamFn: StreamFn? = nil) async throws -> ChatSession {
+        let cwd = HostPaths.canonicalWorkspace(inputCwd)
+        let center = ApprovalCenter()
+        let manager: SessionManager
+        if let sessionFile {
+            guard FileManager.default.fileExists(atPath: sessionFile) else { throw PiError("Session file does not exist") }
+            manager = try SessionManager.open(sessionFile, store.paths.sessionDirectory(cwd: cwd), cwd)
+            guard manager.getHeader().map({ HostPaths.canonicalWorkspace($0.cwd) }) == cwd else { throw PiError("This session belongs to a different workspace") }
+        } else { manager = try SessionManager.create(cwd, store.paths.sessionDirectory(cwd: cwd)) }
+        let key = try await Task.detached { try store.key(for: profile) }.value
+        var options = AgentOptions(initialState: AgentInitialState(systemPrompt: codingSystemPrompt(cwd: cwd),
+            model: try profile.model(), tools: PiHost.createCodingTools(cwd: cwd)), streamFn: streamFn,
+            getApiKey: { _ in key })
+        options.beforeToolCall = { context, signal in
+            let preview = try previewCodingChange(name: context.toolCall.name, arguments: context.args.value, cwd: cwd)
+            let allowed = await center.request(ChatApproval(id: context.toolCall.id, toolName: context.toolCall.name,
+                arguments: context.args.value.serialized(), preview: preview?.diff), signal: signal)
+            guard allowed else { return BeforeToolCallResult(block: true, reason: "Tool execution was declined.", terminate: true) }
+            try signal?.throwIfAborted()
+            try preview?.verifyUnchanged()
+            return nil
+        }
+        let host = try await CodingSessionHost.open(cwd: cwd, paths: store.paths, manager: manager,
+                                                    options: options, connectionID: profile.id)
+        let result = ChatSession(host: host, approvals: center)
+        result.restore(host.manager.buildSessionContext().messages)
+        return result
+    }
+
+    private init(host: CodingSessionHost, approvals: ApprovalCenter) {
+        codingHost = host; agent = host.session.agent; self.approvals = approvals
+    }
+
+    public func shutdown() async {
+        approvals.cancelAll()
+        if let codingHost { await codingHost.shutdown() }
+        else { agent.abort(); await agent.waitForIdle() }
+    }
+
+    private func restore(_ transcript: [AgentMessage]) {
+        messages = []; assistantID = nil
+        for message in transcript {
+            switch message {
+            case .user(let user):
+                let text: String
+                switch user.content {
+                case .string(let value): text = value
+                case .blocks(let values): text = values.compactMap { if case .text(let t) = $0 { return t.text }; return nil }.joined(separator: "\n")
+                }
+                messages.append(ChatMessage(role: .user, text: text))
+            case .assistant(let assistant):
+                let item = ChatMessage(role: .assistant)
+                messages.append(item); assistantID = item.id; update(assistant)
+            case .toolResult(let result):
+                upsertTool(result.toolCallId, name: result.toolName) { tool in
+                    tool.output = result.content.compactMap { if case .text(let t) = $0 { return t.text }; return nil }.joined(separator: "\n")
+                    tool.diff = result.details?["diff"]?.stringValue
+                    tool.state = result.isError ? .failed : .succeeded
+                }
+            default: break
+            }
+        }
+        finishPendingTools()
     }
 
     private func receive(_ event: AgentEvent) {
         switch event {
         case .messageStart(.assistant(let message)):
+            if state == .failed { state = .running; error = nil }
             let item = ChatMessage(role: .assistant)
             assistantID = item.id; messages.append(item); update(message)
         case .messageUpdate(.assistant(let message), _): update(message)
@@ -101,6 +186,7 @@ public final class ChatSession {
         case .toolExecutionEnd(let id, let name, let result, let isError, _):
             upsertTool(id, name: name) { tool in
                 tool.output = Self.text(result)
+                tool.diff = result.details?["diff"]?.stringValue
                 if state == .stopping || state == .cancelled { tool.state = isError ? .interrupted : .succeeded }
                 else if approvals.wasRejected(id) { tool.state = .denied }
                 else { tool.state = isError ? .failed : .succeeded }

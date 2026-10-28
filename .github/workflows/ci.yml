@@ -38,6 +38,10 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiChatTests\.'
+      - name: Test PiHostTests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiHostTests\.'
       - name: Test PiCLITests
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3

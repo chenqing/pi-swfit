@@ -9,4 +9,8 @@ cp "$pi_bin_dir/PiPlayground" "$pi_app/Contents/MacOS/"
 cat > "$pi_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable</key><string>PiPlayground</string><key>CFBundleIdentifier</key><string>dev.chenqing.pi-playground</string><key>CFBundleName</key><string>Pi Playground</string><key>CFBundlePackageType</key><string>APPL</string><key>LSMinimumSystemVersion</key><string>14.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>
 PLIST
-open "$pi_app"
+if [[ -n "${PF_AGENT_DIR:-}" ]]; then
+    open --env "PF_AGENT_DIR=$PF_AGENT_DIR" "$pi_app"
+else
+    open "$pi_app"
+fi

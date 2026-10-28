@@ -3,6 +3,9 @@ import PiAI
 
 public struct CLIArguments: Sendable {
     public var provider = "openai"
+    public var providerExplicit = false
+    public var connection: String?
+    public var listConnections = false
     public var model: String?
     public var api: String?
     public var baseURL: String?
@@ -35,7 +38,9 @@ public struct CLIArguments: Sendable {
             case "-v", "--version": version = true
             case "-p", "--print": printMode = true
             case "--mode": mode = try value(); guard ["text", "json"].contains(mode) else { throw PiError("Supported modes: text, json. RPC is not implemented.") }
-            case "--provider": provider = try value()
+            case "--provider": provider = try value(); providerExplicit = true
+            case "--connection": connection = try value()
+            case "--list-connections": listConnections = true
             case "--model": model = try value()
             case "--api": api = try value()
             case "--base-url": baseURL = try value()
@@ -62,6 +67,7 @@ public struct CLIArguments: Sendable {
             }
             i += 1
         }
+        if connection != nil && (model != nil || api != nil || baseURL != nil || providerExplicit || demo) { throw PiError("Use --connection by itself to select saved model routing") }
         if noSession && (continueSession || session != nil) { throw PiError("--no-session cannot be combined with --continue or --session") }
         if continueSession && session != nil { throw PiError("Choose --continue or --session") }
     }

@@ -14,6 +14,9 @@ struct CLITests {
         #expect(throws: (any Error).self) { try CLIArguments(["--mode", "rpc"]) }
         #expect(throws: (any Error).self) { try CLIArguments(["--model"]) }
         #expect(throws: (any Error).self) { try CLIArguments(["--continue", "--no-session"]) }
+        #expect(try CLIArguments(["--connection", "Work", "-c"]).connection == "Work")
+        #expect(try CLIArguments(["--list-connections"]).listConnections)
+        #expect(throws: (any Error).self) { try CLIArguments(["--connection", "Work", "--base-url", "https://example.invalid"]) }
     }
 
     @Test func editUsesOriginalFileAndRejectsOverlap() async throws {

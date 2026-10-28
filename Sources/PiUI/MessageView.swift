@@ -108,6 +108,12 @@ public struct ToolCallView: View {
                         Text("Result").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
                         Text(tool.output).font(.system(size: 13)).textSelection(.enabled)
                     }
+                    if let diff = tool.diff {
+                        Text("Changes").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                        ScrollView([.horizontal, .vertical]) {
+                            DiffText(diff: diff)
+                        }.frame(height: min(240, CGFloat(diff.components(separatedBy: "\n").count) * 17 + 8))
+                    }
                     if tool.state == .interrupted {
                         Text("Stopped waiting. The tool may have already taken effect.").font(.caption).foregroundStyle(.secondary)
                     }

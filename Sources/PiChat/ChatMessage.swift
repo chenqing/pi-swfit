@@ -8,6 +8,7 @@ public struct ChatToolCall: Identifiable, Sendable {
     public let id: String
     public var name: String
     public var arguments: String
+    public var diff: String?
     public var output: String
     public var state: ChatToolState
     public init(id: String, name: String, arguments: String = "{}", output: String = "", state: ChatToolState = .pending) {
@@ -30,6 +31,7 @@ public struct ChatApproval: Identifiable, Sendable {
     public let toolName: String
     /// Exact validated arguments passed to the tool. Hosts should avoid placing secrets in tool arguments.
     public let arguments: String
+    public var preview: String? = nil
 }
 
 public enum ChatApprovalPolicy: Sendable {

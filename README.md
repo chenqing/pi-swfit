@@ -19,7 +19,7 @@ swift run pf --demo -p "Hello"
 ./scripts/run-playground.sh
 ```
 
-The Playground starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Its connection sheet accepts a provider endpoint and model ID; keys stay in memory. It also includes failure/long-stream scenarios, light/dark appearance, and a compact layout.
+The Playground starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream scenarios, light/dark appearance, and a compact layout.
 
 ## `pf` — Pi for Swift
 
@@ -56,9 +56,10 @@ Choose products independently:
 | `PiAgent` | Agent loop, tool execution, events, steering and cancellation |
 | `PiMCP` | Native MCP client, transports and OAuth |
 | `PiCodingAgent` | Sessions, persistence, compaction, resources, skills and native extensions |
-| `PiChat` | Main-actor conversation presentation and approval adapter for `PiAgent` |
+| `PiHost` | Shared coding tools, Keychain connections, workspace paths and session ownership |
+| `PiChat` | Main-actor conversation presentation and approval adapter for Agent / AgentSession |
 | `PiUI` | SwiftUI conversation, message, composer, tool and approval components |
-| `PiCLI` | `pf` argument parsing, coding tools and CLI host |
+| `PiCLI` | `pf` argument parsing and CLI presentation |
 
 For an offline SwiftUI preview:
 
@@ -89,7 +90,16 @@ struct DemoView: View {
 }
 ```
 
-For a real model, create `ChatSession(options: AgentOptions(...))` with a model, tools and credential closure. See [native UI integration](Docs/UI.md). The UI adapter currently wraps `PiAgent`; it does **not** claim to persist chats, expose branching, or implement the entire `PiCodingAgent` lifecycle. Use the session SDK directly for those capabilities, as `pf` does.
+For an in-memory model, create `ChatSession(options: AgentOptions(...))`. For a persistent coding workspace, use `ChatSession.openCoding(cwd:profile:store:sessionFile:)`. Both routes consume runtime events; they do not rebuild the model transcript from display text. See [native UI integration](Docs/UI.md) and [shared host storage](Docs/HOST.md). Branch navigation and specialized compaction/retry UI are still outside this release.
+
+After saving a connection in Playground, quit it to release the active session, then run from that workspace:
+
+```sh
+pf --list-connections
+pf --connection "My model" --continue
+```
+
+macOS may ask you to authorize each executable's Keychain access, especially after rebuilding unsigned development binaries. `PF_API_KEY` provides an explicit per-process alternative for automation; it is never saved by the host.
 
 ## Upstream compatibility
 

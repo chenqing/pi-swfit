@@ -2,12 +2,16 @@
 
 Environment: Apple Silicon macOS, Apple Swift 6.4, deployment target macOS 14. This is evidence for the standalone source, not a claim that all declared platforms or providers were tested.
 
-- `swift test --no-parallel`: all six targets passed. The runner reports 1,113 tests across PiAI (734), PiAgent (76), PiCodingAgent (267), PiMCP (23), PiChat (8), PiCLI (5). The real codemode sandbox fixture is conditionally skipped when `PI_CODEMODE_HELPER` is unset; no sandbox execution is claimed here.
-- `scripts/smoke-cli.py`: version, unsupported flags, stdin, no-session mode, disk session continuation, JSONL event shape, failure exit status and a loopback OpenAI-compatible SSE → read tool → final response passed.
+- `swift test --no-parallel`: all seven targets passed. The runner reports 1,119 tests across PiAI (734), PiAgent (76), PiCodingAgent (267), PiMCP (23), PiChat (8), PiCLI (5), PiHost (6). The real codemode sandbox fixture is conditionally skipped when `PI_CODEMODE_HELPER` is unset; no sandbox execution is claimed here. The opt-in Keychain test is skipped by default and was run separately on this Mac using a disposable credential.
+- `scripts/smoke-cli.py`: version, unsupported flags, stdin, no-session mode, disk session continuation, saved connection selection, JSONL event shape, failure exit status and a loopback OpenAI-compatible SSE → read tool → final response passed.
 - Release `pf` build and offline execution verified locally.
 - Playground native checks: empty state, Cmd-Return submission, tool approval and rejection, expandable tool detail, stopping with partial text retained, compact layout, light/dark appearance, model configuration sheet, manual scrolling and return-to-latest. Scroll observation uses native NSScrollView metrics so offscreen SwiftUI content does not reset follow state.
 - Presentation refinement: unified native toolbar, 12 pt transcript top inset, trailing user bubbles, paragraph spacing, compact expandable tool rows, one-line growing composer, compact/dark layouts and full-screen transition inspected in the native Playground.
 - Scoped source export inspected for private credential patterns and personal absolute paths; no matches in exported source. Build caches, local sessions and Pagie application data are excluded.
+
+- Shared-host tests: approved edit and persisted diff, restoration without duplicate user turns, session lock/release, refusal after an intervening file edit, declined writes, cancellation while approval is pending, new-session preservation, canonical folder aliases, secret-free configuration/transcripts, and destination-bound credential lookup.
+- Native acceptance used a loopback OpenAI-compatible SSE server and a temporary workspace: save a connection in Keychain → read approval → edit diff preview → approve actual file change → quit/reopen with restored tool results → `pf --continue` using the saved Keychain credential → reopen Playground with the CLI turn restored. Selecting an older session from the native history sheet also restored its messages and tool results. The fixture confirmed authenticated requests and retained earlier tool results in the second user turn. This was not a paid model call.
+- Keychain executable authorization was completed by the user in the macOS system prompt. No broad Keychain access lists or security settings were changed. Noninteractive CLI authorization failure returns promptly; interactive `pf` successfully continued after authorization.
 
 Not validated: paid/live provider calls, real OAuth accounts, iOS UI, Intel hardware, full VoiceOver traversal, Chinese IME composition, packaged/notarized distribution, or a new run of the historical official MCP conformance suite.
 

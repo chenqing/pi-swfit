@@ -1,10 +1,11 @@
 import Foundation
-import CryptoKit
+import PiHost
 import PiAI
 import PiAgent
 import PiCodingAgent
 #if os(macOS)
 import Darwin
+import Security
 #endif
 
 public enum PFCLI {
@@ -30,6 +31,8 @@ public enum PFCLI {
     Swift-specific options:
       --base-url URL           Provider endpoint, including /v1 where required
       --api NAME               openai-completions, openai-responses, anthropic-messages
+      --connection NAME       Saved connection name or ID from Playground
+      --list-connections      List saved connections (no secrets)
       --agent-dir PATH         Default: ~/.pf/agent (or PF_AGENT_DIR)
       --trust-project          Load the current project's .pi resources/settings
       --demo                   Offline fixture; no key, network or tool execution
@@ -58,11 +61,20 @@ public enum PFCLI {
 
     #if os(macOS)
     private static func execute(_ args: CLIArguments) async throws -> Int32 {
-        let cwd = FileManager.default.currentDirectoryPath
+        let cwd = HostPaths.canonicalWorkspace(FileManager.default.currentDirectoryPath)
         let env = ProcessInfo.processInfo.environment
-        let agentDir = ((args.agentDir ?? env["PF_AGENT_DIR"] ?? "~/.pf/agent") as NSString).expandingTildeInPath
-        let cwdID = SHA256.hash(data: Data(cwd.utf8)).prefix(12).map { String(format: "%02x", $0) }.joined()
-        let sessionDir = ((args.sessionDir ?? (agentDir as NSString).appendingPathComponent("sessions/\(cwdID)")) as NSString).expandingTildeInPath
+        // SecItem authentication contexts do not suppress all legacy login-Keychain ACL dialogs.
+        // A batch CLI must fail instead of waiting for an invisible system prompt.
+        if isatty(STDIN_FILENO) != 1, SecKeychainSetUserInteractionAllowed(false) != errSecSuccess {
+            throw PiError("Could not disable interactive Keychain prompts for this batch run")
+        }
+        let paths = HostPaths(agentDir: args.agentDir)
+        let sessionDir = ((args.sessionDir ?? paths.sessionDirectory(cwd: cwd)) as NSString).expandingTildeInPath
+        let connections = ConnectionStore(paths: paths, credentials: KeychainCredentialStore(allowInteraction: isatty(STDIN_FILENO) == 1))
+        if args.listConnections {
+            for profile in try connections.load().profiles { output("\(profile.id)  \(profile.name)  \(profile.modelID)  \(profile.endpoint)\n") }
+            return 0
+        }
         let stdinIsTerminal = isatty(STDIN_FILENO) == 1
         let interactive = stdinIsTerminal && !args.printMode && args.mode != "json"
         var prompts = args.messages
@@ -74,11 +86,24 @@ public enum PFCLI {
             }
         }
         guard interactive || !prompts.isEmpty else { throw PiError("Provide a prompt or pipe text to stdin. Run pf --help.") }
+        let manager: SessionManager
+        if args.noSession { manager = try SessionManager.inMemory(cwd) }
+        else if let file = args.session {
+            let path = (file as NSString).expandingTildeInPath
+            guard FileManager.default.fileExists(atPath: path) else { throw PiError("Session file does not exist: \(path)") }
+            manager = try SessionManager.open(path, sessionDir, cwd)
+        } else if args.continueSession { manager = try SessionManager.continueRecent(cwd, sessionDir) }
+        else { manager = try SessionManager.create(cwd, sessionDir) }
+        if let file = args.session, manager.getHeader().map({ HostPaths.canonicalWorkspace($0.cwd) }) != cwd { throw PiError("Session belongs to another workspace. Change directory before opening \(file)") }
+        let explicitRouting = args.model != nil || env["PF_MODEL"] != nil || args.api != nil || args.baseURL != nil || args.providerExplicit
+        let savedID = CodingSessionHost.savedConnectionID(manager)
+        let profile = try args.demo || (explicitRouting && args.connection == nil) ? nil : connections.load().profile(args.connection ?? savedID)
+        let savedKey = try env["PF_API_KEY"] ?? profile.flatMap { try connections.key(for: $0) }
         let model: Model
         if args.demo {
             model = Model(id: "offline-demo", name: "Offline demo", api: "openai-completions", provider: "demo", baseUrl: "https://example.invalid")
-        } else {
-            guard let id = args.model ?? env["PF_MODEL"], !id.isEmpty else { throw PiError("Specify --model ID or PF_MODEL") }
+        } else if let profile { model = try profile.model() } else {
+            guard let id = args.model ?? env["PF_MODEL"], !id.isEmpty else { throw PiError("Specify --model ID, PF_MODEL, or save a connection in Playground") }
             let registry = createModels()
             if let known = registry.getModel(args.provider, id), args.baseURL == nil, args.api == nil { model = known }
             else {
@@ -91,14 +116,6 @@ public enum PFCLI {
                 model = Model(id: id, name: id, api: api, provider: args.provider, baseUrl: endpoint, input: ["text"], contextWindow: 128_000, maxTokens: 4096)
             }
         }
-        let manager: SessionManager
-        if args.noSession { manager = try SessionManager.inMemory(cwd) }
-        else if let file = args.session {
-            let path = (file as NSString).expandingTildeInPath
-            guard FileManager.default.fileExists(atPath: path) else { throw PiError("Session file does not exist: \(path)") }
-            manager = try SessionManager.open(path, sessionDir, cwd)
-        } else if args.continueSession { manager = try SessionManager.continueRecent(cwd, sessionDir) }
-        else { manager = try SessionManager.create(cwd, sessionDir) }
         let stream: StreamFn
         if args.demo { stream = demoStream }
         else { stream = { model, context, options in
@@ -106,11 +123,11 @@ public enum PFCLI {
         } }
         let tools = args.demo ? [] : createCodingTools(cwd: cwd).filter { args.tools.contains($0.name) }
         let options = AgentOptions(initialState: AgentInitialState(
-            systemPrompt: args.systemPrompt ?? "You are a coding assistant. Work in \(cwd). Read files before changing them. Use the available tools to complete the user's request. Never claim a tool succeeded without its result.",
-            model: model, thinkingLevel: args.thinking, tools: tools), streamFn: stream)
-        let created = try await createAgentSession(CreateAgentSessionOptions(cwd: cwd, agentDir: agentDir, projectTrusted: args.trustProject, agentOptions: options, sessionManager: manager))
-        let session = created.session
-        for warning in created.resourceDiagnostics { diagnostic("pf: \(warning.message)\n") }
+            systemPrompt: args.systemPrompt ?? codingSystemPrompt(cwd: cwd),
+            model: model, thinkingLevel: args.thinking, tools: tools), streamFn: stream, getApiKey: { _ in savedKey })
+        let host = try await CodingSessionHost.open(cwd: cwd, paths: paths, manager: manager, options: options, projectTrusted: args.trustProject, connectionID: profile?.id)
+        let session = host.session
+        for warning in host.diagnostics { diagnostic("pf: \(warning.message)\n") }
         let runFailed = Locked(false)
         let subscription = session.subscribe { event in
             if case .messageEnd(.assistant(let message)) = event, message.stopReason == .error { runFailed.withLock { $0 = true } }
@@ -122,7 +139,7 @@ public enum PFCLI {
         signal(SIGINT, SIG_IGN); signal(SIGTERM, SIG_IGN)
         let signals = [SIGINT, SIGTERM].map { number -> DispatchSourceSignal in
             let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
-            source.setEventHandler { Task { await session.abort(); await session.shutdown(); exit(128 + number) } }
+            source.setEventHandler { Task { await session.abort(); await host.shutdown(); exit(128 + number) } }
             source.resume(); return source
         }
         defer { signals.forEach { $0.cancel() }; signal(SIGINT, SIG_DFL); signal(SIGTERM, SIG_DFL) }
@@ -151,8 +168,8 @@ public enum PFCLI {
                     try await prompt(line)
                 }
             }
-        } catch { await session.shutdown(); throw error }
-        await session.shutdown()
+        } catch { await host.shutdown(); throw error }
+        await host.shutdown()
         return runFailed.current ? 1 : 0
     }
     #endif
