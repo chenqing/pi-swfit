@@ -23,7 +23,7 @@ public final class ApprovalCenter {
     func request(_ request: ChatApproval, signal: AbortSignal?) async -> Bool {
         guard signal?.aborted != true, !Task.isCancelled else { return false }
         let listener = signal?.addEventListener { [weak self] in
-            Task { @MainActor in self?.resolve(request.id, allow: false) }
+            Task { @MainActor [weak self] in self?.resolve(request.id, allow: false) }
         }
         defer { if let listener { signal?.removeEventListener(listener) } }
         return await withTaskCancellationHandler {
@@ -37,7 +37,7 @@ public final class ApprovalCenter {
                 pending.append(request)
             }
         } onCancel: { [weak self] in
-            Task { @MainActor in self?.resolve(request.id, allow: false) }
+            Task { @MainActor [weak self] in self?.resolve(request.id, allow: false) }
         }
     }
 }

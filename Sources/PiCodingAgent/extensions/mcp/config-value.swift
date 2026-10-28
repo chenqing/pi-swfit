@@ -49,8 +49,11 @@ private func runConfigCommand(_ command: String, cwd: String, signal: AbortSigna
                 for handle in handles { posix_spawn_file_actions_addclose(&actions, handle.fileDescriptor) }
                 posix_spawn_file_actions_addchdir_np(&actions, cwd)
                 posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP)); posix_spawnattr_setpgroup(&attributes, 0)
-                let arguments = ["/bin/sh", "-c", command].map { strdup($0) }
-                let environment = ProcessInfo.processInfo.environment.map { strdup($0.key + "=" + $0.value) }
+                let commandArguments: [String] = ["/bin/sh", "-c", command]
+                let arguments = commandArguments.map { argument in argument.withCString { strdup($0) } }
+                let environment = ProcessInfo.processInfo.environment.map { key, value in
+                    (key + "=" + value).withCString { strdup($0) }
+                }
                 defer { arguments.forEach { free($0) }; environment.forEach { free($0) } }
                 var argv = arguments + [nil], envp = environment + [nil], child: pid_t = 0
                 let result = posix_spawn(&child, "/bin/sh", &actions, &attributes, &argv, &envp)
