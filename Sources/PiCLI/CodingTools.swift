@@ -109,8 +109,11 @@ private func runShell(command: String, cwd: String, timeout: Double?, signal: Ab
     posix_spawn_file_actions_addclose(&actions, fd)
     posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP))
     posix_spawnattr_setpgroup(&attributes, 0)
-    let argv = ["/bin/bash", "-c", command].map { strdup($0) } + [nil]
-    let env = ProcessInfo.processInfo.environment.map { strdup($0.key + "=" + $0.value) } + [nil]
+    let commandArguments: [String] = ["/bin/bash", "-c", command]
+    let argv = commandArguments.map { argument in argument.withCString { strdup($0) } } + [nil]
+    let env = ProcessInfo.processInfo.environment.map { key, value in
+        (key + "=" + value).withCString { strdup($0) }
+    } + [nil]
     defer { argv.forEach { free($0) }; env.forEach { free($0) } }
     var pid: pid_t = 0
     let start = Date()

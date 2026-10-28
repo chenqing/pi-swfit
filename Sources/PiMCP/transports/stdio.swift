@@ -77,8 +77,8 @@ public actor StdioTransport: McpTransport {
                 .map { ($0.isEmpty ? (options.cwd ?? FileManager.default.currentDirectoryPath) : $0) + "/" + options.command }
                 .first { access($0, X_OK) == 0 } ?? options.command
         }
-        let arguments = ([options.command] + options.args).map { strdup($0) }
-        let env = environment.map { strdup($0.key + "=" + $0.value) }
+        let arguments = ([options.command] + options.args).map { argument in argument.withCString { strdup($0) } }
+        let env = environment.map { key, value in (key + "=" + value).withCString { strdup($0) } }
         defer { arguments.forEach { free($0) }; env.forEach { free($0) } }
         var argv = arguments + [nil], envp = env + [nil], child: pid_t = 0
         let status = posix_spawn(&child, executable, &actions, &attributes, &argv, &envp)
