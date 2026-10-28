@@ -17,7 +17,7 @@ The repository is named **`pi-swfit`**. The product is **Pi Swift**, and the com
 ![Pi Swift in the Celadon light theme](Docs/Images/pi-swift-light.png)
 
 <details>
-<summary>Dark appearance and compact window</summary>
+<summary>Dark appearance</summary>
 
 ![Pi Swift in the Celadon dark theme](Docs/Images/pi-swift-dark.png)
 

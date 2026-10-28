@@ -32,3 +32,5 @@ The tool-duration regression compares the reported execution time with measured 
 ## Detail polish — 2026-10-29
 
 Native acceptance used the isolated local fixture: search focus/filter/Escape, code-copy confirmation, the circular return-to-latest control, long model names in the sidebar and composer, and light/dark compact layouts. The eight-module test suite passed. README screenshots were refreshed from this build. No live provider or personal conversation was used.
+
+- Full-height sidebar: native light/dark compact windows and sidebar collapse checked. The native toolbar uses an opaque split background aligned with the sidebar; transcript scrolling remains below the toolbar, without text bleeding behind window controls.

@@ -37,46 +37,64 @@ struct AppView: View {
     @State private var showsSidebar = true
     @State private var appearance = "system"
     @State private var insertError: String?
+    private let sidebarWidth: CGFloat = 232
     var body: some View {
-        VStack(spacing: 0) {
-            if let error = workspace.error {
-                HStack { Text(error).font(.callout).foregroundStyle(.red); Spacer(); Button("Dismiss") { workspace.error = nil } }.padding(12)
-            }
-            if let session {
-                HStack(spacing: 0) {
-                    if showsSidebar {
-                        ConversationSidebar(workspace: workspace, configure: { sheet = .connection })
-                            .frame(width: 232)
-                    }
-                    ConversationView(session: session, brandIcon: Image(nsImage: PiBrand.icon),
-                                     composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
-                                         configure: { sheet = .connection }, addTextFile: insertTextFile))
-                        .frame(maxWidth: .infinity)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                if let error = workspace.error {
+                    HStack { Text(error).font(.callout).foregroundStyle(.red); Spacer(); Button("Dismiss") { workspace.error = nil } }.padding(12)
                 }
-            } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
-        }.background(PiBrand.canvas)
-            .toolbar {
-                ToolbarItem(placement: .navigation) { windowIdentity }
-                ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
-                ToolbarItemGroup(placement: .primaryAction) { windowActions.buttonStyle(.plain) }
-            }
-            .toolbarBackground(PiBrand.canvas, for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
-            .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
-            .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
-            .disabled(workspace.busy)
-            .task { await workspace.start() }
-            .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
-            .sheet(item: $sheet) { destination in
-                Group {
-                    switch destination {
-                    case .connection: ConnectionSheet(workspace: workspace)
+                if let session {
+                    HStack(spacing: 0) {
+                        if showsSidebar {
+                            ConversationSidebar(workspace: workspace, configure: { sheet = .connection })
+                                .frame(width: sidebarWidth)
+                        }
+                        ConversationView(session: session, brandIcon: Image(nsImage: PiBrand.icon),
+                                         composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
+                                             configure: { sheet = .connection }, addTextFile: insertTextFile))
+                            .frame(maxWidth: .infinity)
                     }
-                }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
+            }.background {
+                HStack(spacing: 0) {
+                    if showsSidebar { PiBrand.sidebar.frame(width: sidebarWidth) }
+                    PiBrand.canvas
+                }.ignoresSafeArea(.container, edges: .top)
             }
-            .alert("Couldn’t insert text", isPresented: Binding(get: { insertError != nil }, set: { if !$0 { insertError = nil } })) {
-                Button("OK") { insertError = nil }
-            } message: { Text(insertError ?? "") }
+                .toolbar {
+                    ToolbarItem(placement: .navigation) { windowIdentity }
+                    ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
+                    ToolbarItemGroup(placement: .primaryAction) { windowActions.buttonStyle(.plain) }
+                }
+                .toolbarBackground(headerBackground(width: geometry.size.width), for: .windowToolbar)
+                .toolbarBackground(.visible, for: .windowToolbar)
+                .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
+                .disabled(workspace.busy)
+                .task { await workspace.start() }
+                .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
+                .sheet(item: $sheet) { destination in
+                    Group {
+                        switch destination {
+                        case .connection: ConnectionSheet(workspace: workspace)
+                        }
+                    }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                }
+                .alert("Couldn’t insert text", isPresented: Binding(get: { insertError != nil }, set: { if !$0 { insertError = nil } })) {
+                    Button("OK") { insertError = nil }
+                } message: { Text(insertError ?? "") }
+        }
+    }
+    private func headerBackground(width: CGFloat) -> LinearGradient {
+        let edge = min(1, sidebarWidth / max(width, 1))
+        let leading = showsSidebar ? PiBrand.sidebar : PiBrand.canvas
+        return LinearGradient(stops: [
+            .init(color: leading, location: 0),
+            .init(color: leading, location: edge),
+            .init(color: PiBrand.canvas, location: edge),
+            .init(color: PiBrand.canvas, location: 1)
+        ], startPoint: .leading, endPoint: .trailing)
     }
     private var windowIdentity: some View {
         HStack(spacing: 12) {
