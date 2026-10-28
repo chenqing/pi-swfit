@@ -22,7 +22,7 @@ public struct MessageView: View {
             } else {
                 messageBody.frame(maxWidth: .infinity, alignment: .leading)
             }
-            if !message.text.isEmpty && message.tools.isEmpty {
+            if !message.text.isEmpty {
                 Button(action: copyMessage) {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .font(.system(size: 11)).frame(width: 24, height: 16).contentShape(Rectangle())
@@ -43,20 +43,15 @@ public struct MessageView: View {
     private var messageBody: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !message.text.isEmpty {
-                // Paragraph spacing is independent of line leading. Hosts can supply a full block renderer.
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                        Text((try? AttributedString(markdown: paragraph, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(paragraph))
-                            .font(theme.bodyFont).lineSpacing(4).textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                if message.role == .user {
+                    Text(verbatim: message.text).font(theme.bodyFont).lineSpacing(4)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    MarkdownMessage(message.text)
                 }
             }
             ForEach(message.tools) { tool in ToolCallView(tool: tool) }
         }
-    }
-    private var paragraphs: [String] {
-        message.role == .user ? [message.text] : message.text.components(separatedBy: "\n\n").filter { !$0.isEmpty }
     }
     private func copyMessage() {
         guard !message.text.isEmpty else { return }

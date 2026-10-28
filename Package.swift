@@ -24,6 +24,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/jpsim/Yams.git", exact: "6.1.0"),
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.8.0"),
     ],
     targets: [
         .executableTarget(name: "PiMCPConformance", dependencies: ["PiAI", "PiMCP"]),
@@ -42,7 +43,8 @@ let package = Package(
         .executableTarget(name: "pf", dependencies: ["PiCLI"]),
         .testTarget(name: "PiCLITests", dependencies: ["PiCLI", "PiAI", "PiAgent"]),
         .target(name: "PiChat", dependencies: ["PiAI", "PiAgent", "PiCodingAgent", "PiHost"]),
-        .target(name: "PiUI", dependencies: ["PiChat"]),
+        .target(name: "PiUI", dependencies: ["PiChat", .product(name: "Markdown", package: "swift-markdown")]),
+        .testTarget(name: "PiUITests", dependencies: ["PiUI"]),
         .executableTarget(name: "PiPlayground", dependencies: ["PiUI", "PiChat", "PiAI", "PiHost", "PiCodingAgent"], path: "Examples/PiPlayground"),
         .testTarget(name: "PiChatTests", dependencies: ["PiChat", "PiAgent", "PiAI"]),
         .testTarget(name: "PiAITests", dependencies: ["PiAI"]),

@@ -61,7 +61,8 @@ struct Playground: View {
                 ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
                 ToolbarItemGroup(placement: .primaryAction) { windowActions.buttonStyle(.plain) }
             }
-            .toolbarBackground(.hidden, for: .windowToolbar)
+            .toolbarBackground(Color(nsColor: .textBackgroundColor), for: .windowToolbar)
+            .toolbarBackground(.visible, for: .windowToolbar)
             .chatTheme(ChatTheme(accent: playgroundAccent, accentForeground: playgroundOnAccent))
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
             .disabled(workspace.busy)
@@ -100,7 +101,7 @@ struct Playground: View {
                 Divider()
                 Menu("Scenarios") {
                     ForEach(DemoScenario.allCases, id: \.self) { scenario in
-                        Button(scenario.rawValue == "tool" ? "Tool approval" : scenario.rawValue == "failure" ? "Connection failure" : "Long streaming reply") {
+                        Button(scenario.title) {
                             Task { await workspace.demo(scenario) }
                         }
                     }

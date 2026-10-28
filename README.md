@@ -19,7 +19,7 @@ swift run pf --demo -p "Hello"
 ./scripts/run-playground.sh
 ```
 
-The Playground starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream scenarios, light/dark appearance, and a compact layout.
+The Playground starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream/rich-Markdown scenarios, light/dark appearance, and a compact layout.
 
 ## `pf` — Pi for Swift
 
@@ -105,7 +105,7 @@ macOS may ask you to authorize each executable's Keychain access, especially aft
 
 The project uses **pinned, selective porting**, not a blanket “fully compatible” claim. [The compatibility record](Docs/UPSTREAM.md) lists source revisions, backported fixes, platform differences and remaining gaps. [PORTING.md](PORTING.md) preserves historical translation conventions. `scripts/check-upstream.py` compares tracked upstream file blobs without changing the pins.
 
-Not included in this first release: full terminal TUI, RPC mode, JavaScript/npm extension loading, browser tools, iOS UI validation, attachment rendering, or a production release installer. The default message view supports inline Markdown and preserves line breaks; applications can inject a richer renderer.
+Not included in this first release: full terminal TUI, RPC mode, JavaScript/npm extension loading, browser tools, iOS UI validation, attachment rendering, or a production release installer. The default message view renders native Markdown headings, lists, quotes, tables and copyable code blocks. Applications can also inject their own renderer.
 
 ## Development
 
