@@ -1,0 +1,131 @@
+#if os(macOS)
+import AppKit
+import SwiftUI
+
+/// A plain-text editor with chat keyboard semantics and native input-method handling.
+struct ComposerEditor: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var focused: Bool
+    @Binding var height: CGFloat
+    let submit: () -> Void
+
+    func makeNSView(context: Context) -> ComposerScrollView {
+        let scroll = ComposerScrollView()
+        let editor = ComposerTextView()
+        editor.isRichText = false
+        editor.importsGraphics = false
+        editor.allowsUndo = true
+        editor.isAutomaticQuoteSubstitutionEnabled = false
+        editor.isAutomaticDashSubstitutionEnabled = false
+        editor.drawsBackground = false
+        editor.font = .systemFont(ofSize: 14)
+        editor.textColor = .labelColor
+        editor.insertionPointColor = .labelColor
+        editor.textContainerInset = NSSize(width: 0, height: 4)
+        editor.textContainer?.lineFragmentPadding = 0
+        editor.textContainer?.widthTracksTextView = true
+        editor.isHorizontallyResizable = false
+        editor.isVerticallyResizable = true
+        editor.autoresizingMask = [.width]
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = 20
+        paragraph.maximumLineHeight = 20
+        editor.defaultParagraphStyle = paragraph
+        editor.typingAttributes = [.font: NSFont.systemFont(ofSize: 14),
+                                   .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph]
+        editor.setAccessibilityLabel("Message")
+        editor.setAccessibilityHelp("Return to send. Shift-Return for a new line.")
+        editor.delegate = context.coordinator
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.documentView = editor
+        scroll.onLayout = { [weak coordinator = context.coordinator] in coordinator?.measure() }
+        context.coordinator.scroll = scroll
+        updateNSView(scroll, context: context)
+        return scroll
+    }
+
+    func updateNSView(_ scroll: ComposerScrollView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        guard let editor = scroll.documentView as? ComposerTextView else { return }
+        editor.submit = submit
+        editor.focusChanged = { [weak coordinator] value in
+            DispatchQueue.main.async { coordinator?.parent.focused = value }
+        }
+        // Don't replace a marked range while an IME is composing.
+        if editor.string != text && !editor.hasMarkedText() {
+            editor.string = text
+            editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+            editor.undoManager?.removeAllActions()
+        }
+        if focused, let window = editor.window, window.firstResponder !== editor {
+            window.makeFirstResponder(editor)
+        }
+        coordinator.measure()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: ComposerEditor
+        weak var scroll: ComposerScrollView?
+        init(_ parent: ComposerEditor) { self.parent = parent }
+        func textDidChange(_ notification: Notification) {
+            guard let editor = notification.object as? NSTextView else { return }
+            parent.text = editor.string
+            measure()
+        }
+        func measure() {
+            guard let scroll, let editor = scroll.documentView as? NSTextView,
+                  let container = editor.textContainer, let layout = editor.layoutManager,
+                  scroll.contentSize.width > 0 else { return }
+            container.containerSize = NSSize(width: scroll.contentSize.width, height: .greatestFiniteMagnitude)
+            layout.ensureLayout(for: container)
+            let wanted = max(28, ceil(layout.usedRect(for: container).height) + 8)
+            editor.setFrameSize(NSSize(width: scroll.contentSize.width, height: max(scroll.contentSize.height, wanted)))
+            let height = min(168, wanted)
+            if parent.height != height {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.parent.height != height else { return }
+                    self.parent.height = height
+                }
+            }
+        }
+    }
+}
+
+final class ComposerScrollView: NSScrollView {
+    var onLayout: (() -> Void)?
+    override func layout() { super.layout(); onLayout?() }
+}
+
+final class ComposerTextView: NSTextView {
+    var submit: (() -> Void)?
+    var focusChanged: ((Bool) -> Void)?
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if result { focusChanged?(true) }
+        return result
+    }
+    override func resignFirstResponder() -> Bool {
+        let result = super.resignFirstResponder()
+        if result { focusChanged?(false) }
+        return result
+    }
+    override func keyDown(with event: NSEvent) {
+        // Let AppKit consume Return to confirm Chinese/Japanese composition first.
+        if (event.keyCode == 36 || event.keyCode == 76), !hasMarkedText() {
+            if event.modifierFlags.intersection([.shift, .option, .control]).isEmpty {
+                if !event.isARepeat { submit?() }
+                return
+            }
+            insertNewlineIgnoringFieldEditor(nil)
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+#endif

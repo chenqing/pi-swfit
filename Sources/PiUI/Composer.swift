@@ -17,7 +17,10 @@ public struct Composer: View {
     private let send: () -> Void
     private let stop: () -> Void
     private let context: ComposerContext?
-    @FocusState private var focused: Bool
+    @State private var focused = false
+    @State private var editorHeight: CGFloat = 28
+    @State private var addingContent = false
+    @FocusState private var fallbackFocused: Bool
     @Environment(\.chatTheme) private var theme
     public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, send: @escaping () -> Void, stop: @escaping () -> Void) {
         _text = text; self.isRunning = isRunning; self.context = context; self.send = send; self.stop = stop
@@ -27,38 +30,47 @@ public struct Composer: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
                 if let context {
-                    Menu {
-                        Button("Insert text file…", systemImage: "doc.text", action: context.addTextFile)
-                    } label: {
-                        Image(systemName: "plus").font(.system(size: 16, weight: .regular)).frame(width: 24, height: 28)
-                    }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                        .tint(.secondary).foregroundStyle(.secondary).help("Insert text file").accessibilityLabel("Add content")
+                    Button { addingContent.toggle() } label: {
+                        Image(systemName: "plus").font(.system(size: 18, weight: .regular))
+                            .frame(width: 28, height: 28).contentShape(RoundedRectangle(cornerRadius: 6))
+                    }.buttonStyle(ComposerControlStyle()).foregroundStyle(.secondary)
+                        .help("Add content").accessibilityLabel("Add content")
+                        .popover(isPresented: $addingContent, arrowEdge: .top) {
+                            Button {
+                                addingContent = false
+                                context.addTextFile()
+                            } label: {
+                                Label("Insert text file…", systemImage: "doc.text")
+                                    .font(.system(size: 13)).padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                            }.buttonStyle(ComposerControlStyle()).padding(5).frame(width: 200)
+                        }
+                        .onChange(of: addingContent) { if !addingContent { focused = true } }
                 }
-                TextField("Ask something…", text: $text, axis: .vertical)
-                    .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(1...8)
-                    .focused($focused).accessibilityLabel("Message").padding(.vertical, 4)
-                    .help("⌘ Return to send · Return for a new line")
+                editor
                 if isRunning {
                     Button(action: stop) {
                         Image(systemName: "stop.fill").font(.system(size: 10)).frame(width: 28, height: 28)
                             .background(.primary.opacity(0.08), in: Circle())
-                    }.buttonStyle(.plain).help("Stop generation").accessibilityLabel("Stop generation")
+                    }.buttonStyle(ComposerControlStyle()).help("Stop generation").accessibilityLabel("Stop generation")
                 } else if canSend {
-                    Button(action: send) {
+                    Button(action: submit) {
                         Image(systemName: "arrow.up").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
                             .foregroundStyle(theme.accentForeground).background(theme.accent, in: Circle())
-                    }.buttonStyle(.plain).keyboardShortcut(.return, modifiers: .command)
-                        .help("Send message · ⌘ Return").accessibilityLabel("Send message")
+                    }.buttonStyle(ComposerControlStyle())
+                        .help("Send message · Return").accessibilityLabel("Send message")
                 }
-            }.padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.background, in: RoundedRectangle(cornerRadius: 14))
+            }.padding(.horizontal, 8).padding(.vertical, 8)
+                .background {
+                    RoundedRectangle(cornerRadius: 14).fill(.background)
+                        .onTapGesture { focused = true; fallbackFocused = true }
+                }
                 .overlay(RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(Color.primary.opacity(focused ? 0.20 : 0.10), lineWidth: 1))
                 .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
                 .animation(.easeOut(duration: 0.15), value: focused)
             HStack(spacing: 12) {
-                Text(context?.policy ?? (isRunning ? "You can prepare your next message" : "⌘ Return to send"))
-                    .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "⌘ Return to send")
+                Text(context?.policy ?? (isRunning ? "You can prepare your next message" : "Return to send · ⇧ Return for a new line"))
+                    .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "Return to send · ⇧ Return for a new line")
                 Spacer(minLength: 8)
                 if let context {
                     Button(action: context.configure) {
@@ -71,5 +83,39 @@ public struct Composer: View {
                 }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
         }
+    }
+    private func submit() {
+        guard canSend, !isRunning, !addingContent else { return }
+        send()
+        focused = true
+        fallbackFocused = true
+    }
+    @ViewBuilder private var editor: some View {
+        #if os(macOS)
+        ComposerEditor(text: $text, focused: $focused, height: $editorHeight, submit: submit)
+            .frame(height: editorHeight)
+            .overlay(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text("Ask something…").font(.system(size: 14)).foregroundStyle(.tertiary)
+                        .padding(.top, 4).allowsHitTesting(false)
+                }
+            }
+            .help("Return to send · Shift-Return for a new line")
+        #else
+        TextField("Ask something…", text: $text, axis: .vertical)
+            .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(1...8)
+            .focused($fallbackFocused).accessibilityLabel("Message").padding(.vertical, 4)
+        #endif
+    }
+
+}
+
+
+private struct ComposerControlStyle: ButtonStyle {
+    @State private var hovering = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(.primary.opacity(configuration.isPressed ? 0.10 : hovering ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 6))
+            .onHover { hovering = $0 }
     }
 }
