@@ -170,15 +170,26 @@ struct AgentLoopTests {
 
     // #10549
     @Test("records how long execute() took on the tool result, excluding hooks")
-    func durationExcludesHooks() async {
+    func durationExcludesHooks() async throws {
+        let timing = Locked((start: 0.0, hook: 0.0, total: 0.0))
         let tool = echoTool { value in
             await sleepMs(30)
             return textResult(value, details: ["value": .string(value)])
         }
         let cfg = config {
             $0.beforeToolCall = { ctx, _ in
+                let start = performanceNow()
                 await sleepMs(100)
+                if ctx.toolCall.id == "ran" {
+                    timing.withLock { $0.start = start; $0.hook = performanceNow() - start }
+                }
                 return ctx.toolCall.id == "blocked" ? BeforeToolCallResult(block: true, reason: "no") : nil
+            }
+            $0.afterToolCall = { ctx, _ in
+                if ctx.toolCall.id == "ran" {
+                    timing.withLock { $0.total = performanceNow() - $0.start }
+                }
+                return nil
             }
         }
         let calls = Locked(0)
@@ -187,8 +198,14 @@ struct AgentLoopTests {
         _ = await collect(stream)
         let results = await stream.result().compactMap(\.toolResultMessage)
         #expect(results.count == 2)
-        #expect((results[0].durationMs ?? -1) >= 25)
-        #expect((results[0].durationMs ?? 1000) < 100)
+        guard results.count == 2 else { return }
+        let duration = try #require(results[0].durationMs)
+        #expect(duration >= 25)
+        // A sleeping tool can overshoot on a busy runner. Check the excluded hook
+        // against the measured enclosing interval, with 1 ms for integer rounding.
+        let measured = timing.current
+        #expect(measured.hook >= 95)
+        #expect(measured.total - Double(duration) >= measured.hook - 1)
         #expect(results[1].isError == true)
         #expect(results[1].durationMs == nil)
     }
