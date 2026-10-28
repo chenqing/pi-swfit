@@ -12,7 +12,8 @@ jobs:
       - name: Toolchain
         run: swift --version
       - name: Build and test
-        run: swift test
+        # Timing-sensitive cancellation/retry fixtures should not compete with 1,000+ tests.
+        run: swift test --no-parallel
       - name: CLI integration (offline fixtures)
         run: python3 scripts/smoke-cli.py
       - name: Build release CLI

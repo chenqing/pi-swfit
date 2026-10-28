@@ -10,3 +10,5 @@ Environment: Apple Silicon macOS, Apple Swift 6.4, deployment target macOS 14. T
 - Scoped source export inspected for private credential patterns and personal absolute paths; no matches in exported source. Build caches, local sessions and Pagie application data are excluded.
 
 Not validated: paid/live provider calls, real OAuth accounts, iOS UI, Intel hardware, full VoiceOver traversal, Chinese IME composition, packaged/notarized distribution, or a new run of the historical official MCP conformance suite.
+
+CI explicitly uses `swift test --no-parallel`: Swift 6.3 combines all targets into one test process, and simultaneous execution of 1,111 tests on a shared runner starved sub-second retry/cancellation fixtures. Serialization preserves their existing deadlines and assertions; concurrency within each test still runs normally. Local default-parallel and serial runs are both checked.
