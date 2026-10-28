@@ -108,7 +108,7 @@ private struct Replay: Sendable {
     var request: DCapturedRequest?
 }
 
-private func replay(
+private func runRecordedReplay(
     _ name: String,
     _ flavor: Flavor,
     fetch: @escaping FetchFunction,
@@ -138,7 +138,7 @@ private func replay(
 
 private func replaySSE(_ name: String, _ flavor: Flavor, sse: String? = nil, chunkSizes: [Int] = []) async throws -> Replay {
     let recorder = DRecorder()
-    return try await replay(name, flavor, fetch: dSSEFetch(recorder, sse ?? responsesFixtures[name]!.sse, chunkSizes: chunkSizes), recorder: recorder)
+    return try await runRecordedReplay(name, flavor, fetch: dSSEFetch(recorder, sse ?? responsesFixtures[name]!.sse, chunkSizes: chunkSizes), recorder: recorder)
 }
 
 /// Fails (instead of hanging the suite) when `body` does not finish within `seconds`.
@@ -289,7 +289,7 @@ private func upstreamTruncationMessage(_ sse: String) -> String {
             continuation.finish(throwing: PiError("terminated", name: "TypeError"))
             return FetchResponse(status: 200, headers: Headers([("content-type", "text/event-stream")]), body: ResponseBody(stream))
         }
-        let replay = try await within(10) { try await replay("tools-1", flavor, fetch: fetch, recorder: recorder) }
+        let replay = try await within(10) { try await runRecordedReplay("tools-1", flavor, fetch: fetch, recorder: recorder) }
         #expect(replay.events.last?.type == "error")
         #expect(replay.result.stopReason == .error)
         #expect(replay.result.errorMessage == "terminated", "\(replay.result.errorMessage ?? "nil")")
@@ -305,7 +305,7 @@ private func upstreamTruncationMessage(_ sse: String) -> String {
         let recorder = DRecorder()
         let started = Date()
         let replay = try await within(5) {
-            try await replay(
+            try await runRecordedReplay(
                 "think", flavor,
                 fetch: dSSEFetch(recorder, half, hangAtEnd: true),
                 recorder: recorder,
@@ -326,7 +326,7 @@ private func upstreamTruncationMessage(_ sse: String) -> String {
         let controller = AbortController()
         let recorder = DRecorder()
         let task = Task {
-            try await replay("think", flavor, fetch: dSSEFetch(recorder, "", hangAtEnd: true), recorder: recorder, signal: controller.signal)
+            try await runRecordedReplay("think", flavor, fetch: dSSEFetch(recorder, "", hangAtEnd: true), recorder: recorder, signal: controller.signal)
         }
         try await Task.sleep(nanoseconds: 100_000_000)
         controller.abort()
