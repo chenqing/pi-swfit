@@ -31,6 +31,18 @@ private func start(
 }
 
 @Suite(.serialized) struct OAuthCallbackServerTests {
+    @Test func closedListenerCanImmediatelyReuseItsPort() async throws {
+        var port = 0
+        for _ in 0..<20 {
+            let server = try await LoopbackHTTPServer.listen(host: "127.0.0.1", port: port) { _ in
+                LoopbackHTTPResponse(status: 200, headers: [], body: "ok")
+            }
+            port = server.port
+            #expect(port > 0)
+            await server.closeAndWait()
+        }
+    }
+
     @Test func ignoresStrayRequestsAndResolvesWithTheCompletedCode() async throws {
         let server = try await start()
         defer { server.close() }

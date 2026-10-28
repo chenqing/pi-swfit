@@ -40,6 +40,7 @@ final class LoopbackHTTPServer: Sendable {
     private let queue: DispatchQueue
     private let handler: Handler
     private let state = Locked(State())
+    private let stopped = PendingResult<Void>()
     /// The bound port (`server.address().port`).
     var port: Int { state.withLock { $0.port } }
 
@@ -66,6 +67,7 @@ final class LoopbackHTTPServer: Sendable {
         let queue = DispatchQueue(label: "pi.oauth.loopback-http")
         let server = LoopbackHTTPServer(listener: listener, queue: queue, handler: handler)
         let ready = PendingResult<Int>()
+        let stopped = server.stopped
 
         listener.newConnectionHandler = { [weak server] connection in
             guard let server else {
@@ -78,6 +80,8 @@ final class LoopbackHTTPServer: Sendable {
             switch state {
             case .ready:
                 ready.resolve(Int(listener?.port?.rawValue ?? 0))
+            case .cancelled:
+                stopped.resolve(())
             case .failed(let error), .waiting(let error):
                 if ready.isSettled {
                     server?.reportError(mapListenError(error, host: host, port: port))
@@ -129,6 +133,13 @@ final class LoopbackHTTPServer: Sendable {
             return s.closed
         }
         if !alreadyClosed { listener.cancel() }
+    }
+
+    /// Network.framework releases the listening socket asynchronously. Wait for cancellation
+    /// before starting another login on the same fixed callback port.
+    func closeAndWait() async {
+        close()
+        _ = try? await stopped.value()
     }
 
     /// `server.closeAllConnections()`.

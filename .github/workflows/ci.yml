@@ -15,27 +15,36 @@ jobs:
       - name: Toolchain
         run: swift --version
       - name: Build tests and products
+        id: build
         timeout-minutes: 10
         run: swift build --build-tests
       - name: Test PiAITests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiAITests\.'
       - name: Test PiAgentTests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiAgentTests\.'
       - name: Test PiMCPTests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiMCPTests\.'
       - name: Test PiCodingAgentTests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiCodingAgentTests\.'
       - name: Test PiChatTests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiChatTests\.'
       - name: Test PiCLITests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         timeout-minutes: 3
         run: swift test --skip-build --no-parallel --filter '^PiCLITests\.'
       - name: CLI integration (offline fixtures)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: python3 scripts/smoke-cli.py
       - name: Build release CLI
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: swift build -c release --product pf

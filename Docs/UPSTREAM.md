@@ -28,6 +28,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 - Relevant Kimi URL-return behavior from [`89c921d8b`](https://github.com/earendil-works/pi/commit/89c921d8b): pass the normalized HTTP(S) verification URLs to the host instead of returning unchecked originals after validation. Copilot and Meta already enforce HTTP(S) and return normalized URLs in this port. This is a selective application, not a claim that the entire upstream security commit was ported.
 - Restored manual compaction cancellation wording to `Compaction cancelled` at the post-summary boundary, matching the reviewed upstream `agent-session.ts`. Two existing cancellation characterization tests now pass unchanged.
 - Native SDK client filenames use `OpenAIClient.swift` and `AnthropicClient.swift` to avoid case-insensitive object-file collisions with provider filenames on Swift 6.3 builds. Public type names remain unchanged.
+- Swift platform repair: ChatGPT OAuth waits for Network.framework listener cancellation before returning, so an immediate next login can reuse the callback port. A regression repeatedly closes and rebinds the same loopback port.
 - MCP OAuth's default client display name is now `Pi Swift`; the extracted SDK no longer labels third-party login as Pagie.
 
 ## Capability matrix

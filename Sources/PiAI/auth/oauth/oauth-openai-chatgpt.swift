@@ -266,24 +266,20 @@ private func loginOpenAIChatGPT(
         }
     }
 
-    defer {
-        manualAbort.abort()
-        callback.server.close()
-        // close() only stops accepting new connections. Browsers open spare connections ahead of
-        // time, and one that has not sent a request yet stays open and attached to this server.
-        // A later login in the same process starts a new server with a new state, but the browser
-        // may send that login's callback over the spare connection. This server would then handle
-        // it and reject it with "OAuth state mismatch", and the new login would never see it.
-        callback.server.closeAllConnections()
-    }
+    let outcome: Result<OAuthCredential, any Error>
     do {
         let result = try await race.value()
         interaction.notify(.progress(message: "Exchanging authorization code for tokens..."))
-        return try await exchangeAuthorizationCode(rt, result.code, verifier, result.clientId, interaction.signal)
+        outcome = .success(try await exchangeAuthorizationCode(rt, result.code, verifier, result.clientId, interaction.signal))
     } catch {
-        if interaction.signal.aborted { throw PiError("Login cancelled") }
-        throw error
+        outcome = .failure(interaction.signal.aborted ? PiError("Login cancelled") : error)
     }
+    manualAbort.abort()
+    callback.server.close()
+    // Close spare browser connections so a subsequent login cannot reach the old state.
+    callback.server.closeAllConnections()
+    await callback.server.closeAndWait()
+    return try outcome.get()
 }
 
 func createOpenAIChatGPTOAuth(_ rt: OAuthRuntime = .live) -> OAuthAuth {
