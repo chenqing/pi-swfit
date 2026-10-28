@@ -32,7 +32,7 @@ public struct Composer: View {
                     } label: {
                         Image(systemName: "plus").font(.system(size: 16, weight: .regular)).frame(width: 24, height: 28)
                     }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                        .foregroundStyle(.secondary).help("Insert text file").accessibilityLabel("Add content")
+                        .tint(.secondary).foregroundStyle(.secondary).help("Insert text file").accessibilityLabel("Add content")
                 }
                 TextField("Ask something…", text: $text, axis: .vertical)
                     .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(1...8)
@@ -53,12 +53,12 @@ public struct Composer: View {
             }.padding(.horizontal, 12).padding(.vertical, 8)
                 .background(.background, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.primary.opacity(focused ? 0.22 : 0.12), lineWidth: 1))
-                .shadow(color: .black.opacity(0.035), radius: 10, y: 3)
+                    .strokeBorder(Color.primary.opacity(focused ? 0.20 : 0.10), lineWidth: 1))
+                .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
                 .animation(.easeOut(duration: 0.15), value: focused)
             HStack(spacing: 12) {
                 Text(context?.policy ?? (isRunning ? "You can prepare your next message" : "⌘ Return to send"))
-                    .lineLimit(1).help(context?.policy ?? "⌘ Return to send")
+                    .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "⌘ Return to send")
                 Spacer(minLength: 8)
                 if let context {
                     Button(action: context.configure) {
@@ -67,9 +67,9 @@ public struct Composer: View {
                             Image(systemName: "chevron.down").font(.system(size: 8, weight: .medium))
                         }.frame(maxWidth: 220, alignment: .trailing).contentShape(Rectangle())
                     }.buttonStyle(.plain).disabled(isRunning)
-                        .help("Model & workspace").accessibilityLabel("Model: \(context.model)")
+                        .help("Model & workspace · \(context.model)").accessibilityLabel("Model: \(context.model)")
                 }
-            }.font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
+            }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
         }
     }
 }

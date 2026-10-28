@@ -28,3 +28,7 @@ Not validated: paid/live provider calls, real OAuth accounts, iOS UI, Intel hard
 CI builds all targets, then runs every test module in its own process with `--skip-build --no-parallel --filter '^ModuleName\.'`, matching the per-module process isolation of the local Swift 6.4 runner. Default parallel execution on the CI runner overloaded sub-second timing fixtures. Each module retains its assertions and internal concurrency, with explicit step timeouts and unbuffered logs. Independent modules still run after a test failure so their diagnostics remain available. Stress tests observe the agent-start event instead of polling a transient state, and their deadlines can report a suspended operation without waiting indefinitely for task-group teardown.
 
 The tool-duration regression compares the reported execution time with measured hook and enclosing intervals, rather than assuming a 30 ms sleep finishes within 100 ms on a shared CI runner. It still verifies hook exclusion and absent duration on a blocked tool.
+
+## Detail polish — 2026-10-29
+
+Native acceptance used the isolated local fixture: search focus/filter/Escape, code-copy confirmation, the circular return-to-latest control, long model names in the sidebar and composer, and light/dark compact layouts. The eight-module test suite passed. README screenshots were refreshed from this build. No live provider or personal conversation was used.

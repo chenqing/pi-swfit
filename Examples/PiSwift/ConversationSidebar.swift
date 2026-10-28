@@ -12,11 +12,12 @@ struct ConversationSidebar: View {
     @State private var loading = false
     @State private var loadError: String?
     @State private var refresh = UUID()
-    @State private var hovered: String?
+    @FocusState private var searchFocused: Bool
 
     private var locked: Bool { workspace.busy || workspace.session?.isRunning == true }
     private var filtered: [SessionInfo] {
-        sessions.filter { query.isEmpty || title($0).localizedCaseInsensitiveContains(query) }
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sessions.filter { term.isEmpty || title($0).localizedCaseInsensitiveContains(term) }
     }
     private var refreshKey: String {
         "\(workspace.cwd ?? "")|\(workspace.session?.sessionFile ?? "")|\(workspace.session?.isRunning == true)|\(refresh)"
@@ -24,42 +25,47 @@ struct ConversationSidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { Task { await workspace.newConversation() } } label: {
-                Label("New conversation", systemImage: "plus.circle")
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil").frame(width: 16)
+                    Text("New conversation")
+                    Spacer()
+                    Text("⌘N").font(.system(size: 11)).foregroundStyle(.tertiary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
                     .contentShape(Rectangle())
-            }.buttonStyle(.plain).disabled(locked).keyboardShortcut("n", modifiers: .command)
+            }.buttonStyle(SidebarButtonStyle()).disabled(locked).keyboardShortcut("n", modifiers: .command)
                 .padding(.top, 8)
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass").frame(width: 16).foregroundStyle(.secondary)
                 TextField("Search conversations", text: $query).textFieldStyle(.plain)
-                    .accessibilityLabel("Search conversations")
+                    .accessibilityLabel("Search conversations").focused($searchFocused)
+                    .onExitCommand { query = ""; searchFocused = false }
                 if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").frame(width: 20, height: 20) }
                         .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
                 }
-            }.font(.system(size: 12)).padding(.horizontal, 12).padding(.vertical, 10)
+            }.font(.system(size: 12)).padding(.horizontal, 10).frame(height: 32)
+                .background(.primary.opacity(searchFocused ? 0.045 : 0.025), in: RoundedRectangle(cornerRadius: 7))
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(PiBrand.accent.opacity(searchFocused ? 0.30 : 0), lineWidth: 1) }
+                .padding(.horizontal, 2).padding(.top, 4)
 
             Text(workspace.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Conversations")
                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                .lineLimit(1).padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 8)
+                .lineLimit(1).truncationMode(.middle).help(workspace.cwd ?? "Conversations").padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 8)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     if (workspace.session?.sessionFile == nil || (workspace.session?.messages.isEmpty == true && !sessions.contains { $0.path == workspace.session?.sessionFile })) && query.isEmpty {
                         Label(workspace.profile == nil ? "Offline demo" : "New conversation", systemImage: "bubble.left")
                             .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 12).padding(.vertical, 9)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
                             .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 7))
                     }
                     ForEach(filtered, id: \.path) { info in
                         Button { Task { await open(info) } } label: {
                             Text(title(info)).lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12).padding(.vertical, 9)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
                                 .contentShape(Rectangle())
-                                .background(.primary.opacity(info.path == workspace.session?.sessionFile ? 0.075 : hovered == info.path ? 0.035 : 0),
-                                            in: RoundedRectangle(cornerRadius: 7))
-                        }.buttonStyle(.plain).disabled(locked)
-                            .onHover { hovered = $0 ? info.path : nil }
+                        }.buttonStyle(SidebarButtonStyle(selected: info.path == workspace.session?.sessionFile)).disabled(locked)
                             .help("\(title(info))\n\(info.modified.formatted(date: .abbreviated, time: .shortened))")
                             .accessibilityAddTraits(info.path == workspace.session?.sessionFile ? .isSelected : [])
                     }
@@ -78,15 +84,15 @@ struct ConversationSidebar: View {
             Spacer(minLength: 12)
             Button(action: configure) {
                 HStack(spacing: 10) {
-                    Image(systemName: "slider.horizontal.3").foregroundStyle(.secondary)
+                    Image(systemName: "slider.horizontal.3").frame(width: 16).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(workspace.profile?.name ?? "Model & workspace").lineLimit(1)
-                        Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(.tertiary)
                 }.padding(12).contentShape(Rectangle())
-            }.buttonStyle(.plain).disabled(locked).help("Model & workspace")
+            }.buttonStyle(SidebarButtonStyle()).disabled(locked).help("Model & workspace")
                 .accessibilityLabel("Model & workspace").padding(.bottom, 8)
         }.font(.system(size: 13)).padding(.horizontal, 8)
             .background(PiBrand.sidebar)
@@ -113,6 +119,18 @@ struct ConversationSidebar: View {
     private func open(_ info: SessionInfo) async {
         do { try await workspace.resume(info) }
         catch { workspace.error = String(describing: error) }
+    }
+}
+private struct SidebarButtonStyle: ButtonStyle {
+    var selected = false
+    @State private var hovered = false
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(.primary.opacity(configuration.isPressed ? 0.10 : selected ? 0.065 : hovered && enabled ? 0.035 : 0),
+                        in: RoundedRectangle(cornerRadius: 7))
+            .opacity(enabled ? 1 : 0.45)
+            .onHover { hovered = $0 }
     }
 }
 #endif

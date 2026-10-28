@@ -124,15 +124,16 @@ private struct MarkdownCodeBlock: View {
                     copied = true
                 } label: {
                     Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .frame(minWidth: 52, alignment: .trailing).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("Copy code").accessibilityLabel(copied ? "Code copied" : "Copy code")
                     .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }
-            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 10)
+            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 8)
             Rectangle().fill(.primary.opacity(0.055)).frame(height: 1)
             ScrollView([.horizontal, .vertical]) {
-                Text(displayed.isEmpty ? " " : displayed).font(.system(size: 12, design: .monospaced))
+                Text(displayed.isEmpty ? " " : displayed).font(.system(size: 13, design: .monospaced))
                     .lineSpacing(4).textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(height: min(360, CGFloat(displayed.components(separatedBy: "\n").count) * 18 + 28))
+            }.frame(height: min(360, CGFloat(displayed.components(separatedBy: "\n").count) * 20 + 28))
         }.background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
             .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(0.07), lineWidth: 1) }
     }

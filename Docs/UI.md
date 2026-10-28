@@ -90,3 +90,7 @@ Only HTTP, HTTPS and mailto links are interactive. Images display their alternat
 
 
 `ComposerContext` lets a host supply the model label, approval label, settings action and text-file insertion action. Pi Swift's Add menu inserts UTF-8 file text (up to 128 KiB) into the draft; it does not upload an attachment or submit a message. The draft stays editable during generation. The model control is disabled while a request is running, and permissions remain explicit per tool call. Empty input has no send button; Cmd-Return sends nonblank input and Return inserts a newline.
+
+### Detail polish
+
+The composer keeps a 12 pt gap from the transcript and a smaller 11 pt metadata footer. Long model names truncate in the middle, with the full name available in the tooltip; the permission label stays readable. Back to latest is a quiet 30 pt circular overlay. Code uses a 13 pt monospaced face, a tighter header and a stable-width copy action. Sidebar actions share hover/pressed/selection treatment; search has a subtle focus border and Escape clears and leaves the field.

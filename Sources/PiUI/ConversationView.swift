@@ -40,10 +40,16 @@ public struct ConversationView<MessageContent: View>: View {
                     }.coordinateSpace(name: "pi-conversation")
                         .onChange(of: session.messages.count) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
                         .onChange(of: session.messages.last?.text) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
-                        .overlay(alignment: .bottomTrailing) {
+                        .overlay(alignment: .bottom) {
                             if !followsBottom && distance > 80 {
-                                Button { followsBottom = true; proxy.scrollTo("bottom", anchor: .bottom) } label: { Image(systemName: "arrow.down").padding(8) }
-                                    .buttonStyle(.bordered).help("Back to latest").accessibilityLabel("Back to latest").padding(16)
+                                Button { followsBottom = true; proxy.scrollTo("bottom", anchor: .bottom) } label: {
+                                    Image(systemName: "arrow.down").font(.system(size: 12, weight: .medium))
+                                        .frame(width: 30, height: 30)
+                                        .background(.regularMaterial, in: Circle())
+                                        .overlay { Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 1) }
+                                        .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
+                                }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                    .help("Back to latest").accessibilityLabel("Back to latest").padding(.bottom, 8)
                             }
                         }
                 }
@@ -60,7 +66,7 @@ public struct ConversationView<MessageContent: View>: View {
                 }
                 Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
                          send: { Task { await session.send() } }, stop: { session.stop() })
-            }.padding(.horizontal, 24).padding(.bottom, 20).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+            }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
         }
     }
     private var emptyState: some View {
