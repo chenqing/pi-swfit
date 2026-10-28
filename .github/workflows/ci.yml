@@ -7,13 +7,34 @@ permissions:
 jobs:
   macos:
     runs-on: macos-latest
+    timeout-minutes: 25
+    env:
+      NSUnbufferedIO: "YES"
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
         run: swift --version
-      - name: Build and test
-        # Timing-sensitive cancellation/retry fixtures should not compete with 1,000+ tests.
-        run: swift test --no-parallel
+      - name: Build tests and products
+        timeout-minutes: 10
+        run: swift build --build-tests
+      - name: Test PiAITests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiAITests\.'
+      - name: Test PiAgentTests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiAgentTests\.'
+      - name: Test PiMCPTests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiMCPTests\.'
+      - name: Test PiCodingAgentTests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiCodingAgentTests\.'
+      - name: Test PiChatTests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiChatTests\.'
+      - name: Test PiCLITests
+        timeout-minutes: 3
+        run: swift test --skip-build --no-parallel --filter '^PiCLITests\.'
       - name: CLI integration (offline fixtures)
         run: python3 scripts/smoke-cli.py
       - name: Build release CLI
