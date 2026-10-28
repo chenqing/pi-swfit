@@ -123,7 +123,7 @@ private struct MarkdownCodeBlock: View {
                     NSPasteboard.general.setString(source, forType: .string)
                     copied = true
                 } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    Label { Text(copied ? "Copied" : "Copy") } icon: { ChatIcon(copied ? .check : .copy, size: 13) }
                         .frame(minWidth: 52, alignment: .trailing).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("Copy code").accessibilityLabel(copied ? "Code copied" : "Copy code")
                     .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }

@@ -99,7 +99,7 @@ struct AppView: View {
     private var windowIdentity: some View {
         HStack(spacing: 12) {
             Button { showsSidebar.toggle() } label: {
-                Image(systemName: "sidebar.left").frame(width: 24, height: 32)
+                ChatIcon(.sidebar, size: 18).frame(width: 28, height: 32)
             }.buttonStyle(.plain).help("Toggle sidebar").accessibilityLabel("Toggle sidebar")
                 .keyboardShortcut("s", modifiers: [.command, .control])
             Text("Pi Swift").font(.system(size: 13, weight: .medium)).help(connection)
@@ -123,14 +123,14 @@ struct AppView: View {
         if let session {
             if !showsSidebar {
                 Button { Task { await workspace.newConversation() } } label: {
-                    Image(systemName: "square.and.pencil").frame(width: 24, height: 32)
+                    ChatIcon(.add, size: 18).frame(width: 28, height: 32)
                 }.help("New conversation").accessibilityLabel("New conversation").disabled(session.isRunning)
             }
             Menu {
                 Text(connection)
                 if let cwd = workspace.cwd { Text(URL(fileURLWithPath: cwd).lastPathComponent) }
-                Button("Show conversations", systemImage: "sidebar.left") { showsSidebar = true }
-                Button("Model & workspace…", systemImage: "slider.horizontal.3") { sheet = .connection }
+                Button("Show conversations", systemImage: ChatSymbol.sidebar.rawValue) { showsSidebar = true }
+                Button("Model & workspace…", systemImage: ChatSymbol.settings.rawValue) { sheet = .connection }
                     .disabled(session.isRunning)
                 Divider()
                 Menu("Scenarios") {
@@ -147,7 +147,7 @@ struct AppView: View {
                         Text("Dark").tag("dark")
                     }.pickerStyle(.inline)
                 }
-            } label: { Image(systemName: "ellipsis").frame(width: 24, height: 32) }
+            } label: { ChatIcon(.more, size: 18).frame(width: 28, height: 32) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                 .help("More options").accessibilityLabel("More options")
         }

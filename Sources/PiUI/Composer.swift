@@ -21,7 +21,6 @@ public struct Composer: View {
     @State private var editorHeight: CGFloat = 28
     @State private var addingContent = false
     @FocusState private var fallbackFocused: Bool
-    @Environment(\.chatTheme) private var theme
     public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, send: @escaping () -> Void, stop: @escaping () -> Void) {
         _text = text; self.isRunning = isRunning; self.context = context; self.send = send; self.stop = stop
     }
@@ -31,7 +30,7 @@ public struct Composer: View {
             HStack(alignment: .bottom, spacing: 8) {
                 if let context {
                     Button { addingContent.toggle() } label: {
-                        Image(systemName: "plus").font(.system(size: 18, weight: .regular))
+                        ChatIcon(.add, size: 18)
                             .frame(width: 28, height: 28).contentShape(RoundedRectangle(cornerRadius: 6))
                     }.buttonStyle(ComposerControlStyle()).foregroundStyle(.secondary)
                         .help("Add content").accessibilityLabel("Add content")
@@ -40,7 +39,7 @@ public struct Composer: View {
                                 addingContent = false
                                 context.addTextFile()
                             } label: {
-                                Label("Insert text file…", systemImage: "doc.text")
+                                Label { Text("Insert text file…") } icon: { ChatIcon(.file, size: 14) }
                                     .font(.system(size: 13)).padding(8).frame(maxWidth: .infinity, alignment: .leading)
                             }.buttonStyle(ComposerControlStyle()).padding(5).frame(width: 200)
                         }
@@ -49,13 +48,13 @@ public struct Composer: View {
                 editor
                 if isRunning {
                     Button(action: stop) {
-                        Image(systemName: "stop.fill").font(.system(size: 10)).frame(width: 28, height: 28)
+                        ChatIcon(.stop, size: 10).frame(width: 28, height: 28)
                             .background(.primary.opacity(0.08), in: Circle())
                     }.buttonStyle(ComposerControlStyle()).help("Stop generation").accessibilityLabel("Stop generation")
                 } else if canSend {
                     Button(action: submit) {
-                        Image(systemName: "arrow.up").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
-                            .foregroundStyle(theme.accentForeground).background(theme.accent, in: Circle())
+                        ChatIcon(.send, size: 17).frame(width: 28, height: 28)
+                            .foregroundStyle(.primary).contentShape(Rectangle())
                     }.buttonStyle(ComposerControlStyle())
                         .help("Send message · Return").accessibilityLabel("Send message")
                 }
@@ -76,7 +75,7 @@ public struct Composer: View {
                     Button(action: context.configure) {
                         HStack(spacing: 4) {
                             Text(context.model).lineLimit(1).truncationMode(.middle)
-                            Image(systemName: "chevron.down").font(.system(size: 8, weight: .medium))
+                            ChatIcon(.down, size: 10)
                         }.frame(maxWidth: 220, alignment: .trailing).contentShape(Rectangle())
                     }.buttonStyle(.plain).disabled(isRunning)
                         .help("Model & workspace · \(context.model)").accessibilityLabel("Model: \(context.model)")

@@ -43,7 +43,7 @@ public struct ConversationView<MessageContent: View>: View {
                         .overlay(alignment: .bottom) {
                             if !followsBottom && distance > 80 {
                                 Button { followsBottom = true; proxy.scrollTo("bottom", anchor: .bottom) } label: {
-                                    Image(systemName: "arrow.down").font(.system(size: 12, weight: .medium))
+                                    ChatIcon(.latest, size: 14)
                                         .frame(width: 30, height: 30)
                                         .background(.regularMaterial, in: Circle())
                                         .overlay { Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 1) }
@@ -59,7 +59,7 @@ public struct ConversationView<MessageContent: View>: View {
                     ApprovalView(approval: approval) { session.approvals.resolve(approval.id, allow: $0) }
                 }
                 if let error = session.error {
-                    Label(error, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(.red)
+                    Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }.font(.callout).foregroundStyle(.red)
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 } else if session.state == .cancelled {
                     Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
@@ -92,7 +92,7 @@ public struct ConversationView<MessageContent: View>: View {
     private func suggestion(_ text: String, symbol: String) -> some View {
         Button { session.draft = text } label: {
             HStack(spacing: 10) {
-                Image(systemName: symbol).foregroundStyle(theme.accent).frame(width: 18)
+                Image(systemName: symbol).font(.system(size: 16, weight: .regular)).foregroundStyle(.secondary).frame(width: 18)
                 Text(text).font(.system(size: 13))
                 Spacer()
                 Image(systemName: "arrow.up.left").font(.system(size: 11)).foregroundStyle(.tertiary)

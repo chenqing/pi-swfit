@@ -2,6 +2,7 @@
 import SwiftUI
 import AppKit
 import PiCodingAgent
+import PiUI
 
 /// A host-level navigator over the same on-disk conversations used by pf.
 struct ConversationSidebar: View {
@@ -26,7 +27,8 @@ struct ConversationSidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { Task { await workspace.newConversation() } } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "square.and.pencil").frame(width: 16)
+                    ChatIcon(.add, size: 13).frame(width: 18, height: 18)
+                        .background(.primary.opacity(0.06), in: Circle())
                     Text("New conversation")
                     Spacer()
                     Text("⌘N").font(.system(size: 11)).foregroundStyle(.tertiary)
@@ -35,12 +37,12 @@ struct ConversationSidebar: View {
             }.buttonStyle(SidebarButtonStyle()).disabled(locked).keyboardShortcut("n", modifiers: .command)
                 .padding(.top, 8)
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").frame(width: 16).foregroundStyle(.secondary)
+                ChatIcon(.search).frame(width: 18).foregroundStyle(.secondary)
                 TextField("Search conversations", text: $query).textFieldStyle(.plain)
                     .accessibilityLabel("Search conversations").focused($searchFocused)
                     .onExitCommand { query = ""; searchFocused = false }
                 if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").frame(width: 20, height: 20) }
+                    Button { query = "" } label: { ChatIcon(.close, size: 10).frame(width: 20, height: 20) }
                         .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
                 }
             }.font(.system(size: 12)).padding(.horizontal, 10).frame(height: 32)
@@ -54,7 +56,7 @@ struct ConversationSidebar: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     if (workspace.session?.sessionFile == nil || (workspace.session?.messages.isEmpty == true && !sessions.contains { $0.path == workspace.session?.sessionFile })) && query.isEmpty {
-                        Label(workspace.profile == nil ? "Offline demo" : "New conversation", systemImage: "bubble.left")
+                        Text(workspace.profile == nil ? "Offline demo" : "New conversation")
                             .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 12).padding(.vertical, 8)
                             .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 7))
@@ -84,13 +86,13 @@ struct ConversationSidebar: View {
             Spacer(minLength: 12)
             Button(action: configure) {
                 HStack(spacing: 10) {
-                    Image(systemName: "slider.horizontal.3").frame(width: 16).foregroundStyle(.secondary)
+                    ChatIcon(.settings).frame(width: 18).foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(workspace.profile?.name ?? "Model & workspace").lineLimit(1)
                         Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(.tertiary)
+                    ChatIcon(.down, size: 10).foregroundStyle(.tertiary)
                 }.padding(12).contentShape(Rectangle())
             }.buttonStyle(SidebarButtonStyle()).disabled(locked).help("Model & workspace")
                 .accessibilityLabel("Model & workspace").padding(.bottom, 8)

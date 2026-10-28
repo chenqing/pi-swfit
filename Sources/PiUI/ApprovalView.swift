@@ -8,7 +8,7 @@ public struct ApprovalView: View {
     public init(approval: ChatApproval, decide: @escaping (Bool) -> Void) { self.approval = approval; self.decide = decide }
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Allow \(approval.toolName)?", systemImage: "hand.raised").font(.system(size: 14, weight: .medium))
+            Label { Text("Allow \(approval.toolName)?") } icon: { ChatIcon(.approval, size: 14) }.font(.system(size: 14, weight: .medium))
             if let preview = approval.preview {
                 ScrollView([.horizontal, .vertical]) { DiffText(diff: preview) }
                     .frame(height: min(180, max(70, CGFloat(preview.components(separatedBy: "\n").count) * 16)))

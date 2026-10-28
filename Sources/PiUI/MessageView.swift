@@ -24,8 +24,8 @@ public struct MessageView: View {
             }
             if !message.text.isEmpty {
                 Button(action: copyMessage) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 11)).frame(width: 24, height: 16).contentShape(Rectangle())
+                    ChatIcon(copied ? .check : .copy, size: 14)
+                        .frame(width: 28, height: 24).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary).focused($copyFocused)
                 .opacity(hovered || copied || copyFocused ? 1 : 0)
@@ -65,15 +65,15 @@ public struct ToolCallView: View {
     public let tool: ChatToolCall
     @State private var expanded = false
     public init(tool: ChatToolCall) { self.tool = tool }
-    private var symbol: String {
+    private var symbol: ChatSymbol {
         switch tool.state {
-        case .pending: "clock"
-        case .awaitingApproval: "hand.raised"
-        case .running: "gearshape.2"
-        case .succeeded: "checkmark"
-        case .failed: "exclamationmark.circle"
-        case .denied: "hand.raised"
-        case .interrupted: "pause.circle"
+        case .pending: .waiting
+        case .awaitingApproval: .approval
+        case .running: .waiting
+        case .succeeded: .check
+        case .failed: .failure
+        case .denied: .approval
+        case .interrupted: .interrupted
         }
     }
     private var status: String { tool.state == .awaitingApproval ? "Needs approval" : tool.state.rawValue.capitalized }
@@ -81,12 +81,15 @@ public struct ToolCallView: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { expanded.toggle() } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: symbol).font(.system(size: 11)).frame(width: 14)
+                    Group {
+                        if tool.state == .running { ProgressView().controlSize(.mini) }
+                        else { ChatIcon(symbol, size: 13) }
+                    }.frame(width: 16, height: 16)
                     Text(tool.name).font(.system(size: 13))
                     if tool.state != .succeeded {
                         Text("· " + status).font(.system(size: 12))
                     }
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .medium))
+                    ChatIcon(.right, size: 10)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                     Spacer(minLength: 0)
                 }.foregroundStyle(tool.state == .failed ? Color.red : .secondary)

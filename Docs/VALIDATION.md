@@ -41,3 +41,8 @@ Native acceptance used the isolated local fixture: search focus/filter/Escape, c
 Rechecked the local Claude Code composer with an unsent temporary draft (cleared afterward). Pi Swift now uses a fixed 28 pt Add button and a native plain-text editor; the Add and send/stop actions stay aligned at the bottom while the editor grows upward. Native QA covered empty/single/multiline drafts, Shift-Return, Return submission, draft preservation while running, stopping pending tool approval, Escape from the Add popover, UTF-8 file insertion and resumed editing, a 20-line internally scrolling draft, and light/dark compact layouts. README screenshots contain only the isolated local fixture.
 
 Three new AppKit tests cover Return/Cmd-Return submission, modified Return/newlines, held-key suppression, marked-text confirmation without submission, and multiline insertion without submission. This tests the marked-text API; real Chinese/Japanese IME candidate selection and full VoiceOver traversal still need manual acceptance. All eight test modules and the Release app build passed locally. Model/workspace configuration and text-file insertion retain their existing scope; image uploads, Claude slash commands and permission modes are not emulated.
+
+
+## Icon consistency — 2026-10-29
+
+Shared regular monochrome icons now cover sidebar navigation, toolbar actions, composer, copy, disclosure and tool states. Native light/dark and compact-window checks confirmed the vertical More menu, Return-arrow send button, copy confirmation and tool approval → completion → disclosure. The screenshots were refreshed using only the isolated demonstration profile. The eight-module test suite and Release app packaging passed.
