@@ -1,0 +1,53 @@
+{
+  "repository": "earendil-works/pi",
+  "reviewedHead": "4ba356228c7fea1524413b1d56f9a31351329575",
+  "reviewedOn": "2026-10-28",
+  "scope": "Source review and selective backports, not whole-repository parity",
+  "baseRevisions": {
+    "PiAI/PiAgent": "16f5f0af4",
+    "resources/MCP": "42cb822f1c5d3153069dd0661bfd297424666cf1",
+    "incrementalJSON/identity": "d5b3de22d0e24a3e9c38a9410d3329b099717283"
+  },
+  "trackedFiles": [
+    {
+      "path": "packages/ai/src/types.ts",
+      "reviewedBlob": "32b5a5f31eee96a01830641eeea105feafc22bf3"
+    },
+    {
+      "path": "packages/agent/src/types.ts",
+      "reviewedBlob": "dbfba74a084f71951e48285869730b70a405ba3a"
+    },
+    {
+      "path": "packages/agent/src/agent.ts",
+      "reviewedBlob": "c0a482d3a499b6baabd61cd1c4eed3f93cb2a9a6"
+    },
+    {
+      "path": "packages/coding-agent/src/core/agent-session.ts",
+      "reviewedBlob": "c1529f019965cc3bf8bf15d510118c8a47f0cabf"
+    },
+    {
+      "path": "packages/coding-agent/src/core/session-manager.ts",
+      "reviewedBlob": "89431f2a3201a339f036dc8f8351c9180b454b09"
+    },
+    {
+      "path": "packages/coding-agent/src/cli/args.ts",
+      "reviewedBlob": "1cbfc228ba0e3605a36a46b6bc13032cf8948d19"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools/read.ts",
+      "reviewedBlob": "ebe2c251703ecc4db875696290caf352aafe4859"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools/write.ts",
+      "reviewedBlob": "374089017d3aecbad3657d50272f054d39a88118"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools/edit.ts",
+      "reviewedBlob": "62e6fdee033df26d8a9454bded9a8a5aca0a3da3"
+    },
+    {
+      "path": "packages/coding-agent/src/core/tools/bash.ts",
+      "reviewedBlob": "4620e24648b6ba9e8aa4f5083eb99927549ebcaa"
+    }
+  ]
+}

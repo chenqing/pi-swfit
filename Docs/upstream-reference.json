@@ -1,0 +1,286 @@
+{
+  "status": "native-skills-mcp-conformance-resilience",
+  "repository": "https://github.com/earendil-works/pi",
+  "upstreamCommit": "42cb822f1c5d3153069dd0661bfd297424666cf1",
+  "existingSwiftBaseline": "16f5f0af4",
+  "reviewedOn": "2026-10-23",
+  "files": [
+    {
+      "path": "packages/coding-agent/docs/skills.md",
+      "gitBlob": "19d2bf28910ce49caaaf4dde86d1e96330ca7b31",
+      "bytes": 4793,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/docs/skills.md"
+    },
+    {
+      "path": "packages/coding-agent/docs/mcp.md",
+      "gitBlob": "5d5eb338e22282d409fe9cb659a5eef2a21f0c6e",
+      "bytes": 19870,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/docs/mcp.md"
+    },
+    {
+      "path": "packages/coding-agent/docs/settings.md",
+      "gitBlob": "7e2898525d8169fcff622dd3d67f1056f76e679f",
+      "bytes": 13799,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/docs/settings.md"
+    },
+    {
+      "path": "packages/coding-agent/docs/configuration.md",
+      "gitBlob": "b16fd001d836f764a3e50f9cdbde7e72ccbdef41",
+      "bytes": 3239,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/docs/configuration.md"
+    },
+    {
+      "path": "packages/coding-agent/src/core/skills.ts",
+      "gitBlob": "3fbf2b9267d46768896a587fe8926bd2ef898f38",
+      "bytes": 14941,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/skills.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/resource-loader.ts",
+      "gitBlob": "3d59416af4c22974a6f176cecf621ba16860edc3",
+      "bytes": 48270,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/resource-loader.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/settings-manager.ts",
+      "gitBlob": "ad8b82c9e10b186e349045cebd6081a56313d564",
+      "bytes": 46845,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/settings-manager.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/settings-schema.ts",
+      "gitBlob": "b17bab5630c8987cccb6db33ca708524c182b4d5",
+      "bytes": 18114,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/settings-schema.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/sdk.ts",
+      "gitBlob": "0bf874fff7817d1e13e93d6af53285b019ba19c5",
+      "bytes": 18183,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/sdk.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions/types.ts",
+      "gitBlob": "b29e2d4b03dbc1e4f29552919dc90ab7253212c6",
+      "bytes": 85216,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/extensions/types.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/mcp-servers.ts",
+      "gitBlob": "1f6414928f37c1ed2b96f51a4918ec17a01a6ae5",
+      "bytes": 15866,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/mcp-servers.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/mcp/config.ts",
+      "gitBlob": "d06fddfd886ffba86f8c7fa58f5f7a90a39781e2",
+      "bytes": 9685,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/mcp/config.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/mcp/runtime.ts",
+      "gitBlob": "f13d21b1273ababa7f2cdabe31bd25bba6d2fb3d",
+      "bytes": 17059,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/mcp/runtime.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/mcp/tools.ts",
+      "gitBlob": "63f95dbb8367aa71f0a75b3fce76f5cfec1fa858",
+      "bytes": 16486,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/mcp/tools.ts"
+    },
+    {
+      "path": "packages/mcp/src/client.ts",
+      "gitBlob": "90997aa4cdc4c429c7273086e7a9e9201ef6ca62",
+      "bytes": 21692,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/client.ts"
+    },
+    {
+      "path": "packages/mcp/src/transports/stdio.ts",
+      "gitBlob": "26479ac734147d53e905980a455c01a810bf1649",
+      "bytes": 7616,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/transports/stdio.ts"
+    },
+    {
+      "path": "packages/coding-agent/test/mcp-conformance/README.md",
+      "gitBlob": "8aaa36690753b117bac9fee92b2c1e394998ca54",
+      "bytes": 2590,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/test/mcp-conformance/README.md"
+    },
+    {
+      "path": "packages/mcp/src/protocol/jsonrpc.ts",
+      "gitBlob": "7f7c795bb90224ae48a28fbb10641294774509dc",
+      "bytes": 3173,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/protocol/jsonrpc.ts"
+    },
+    {
+      "path": "packages/mcp/src/protocol/types.ts",
+      "gitBlob": "a972f73571146cac52ef0357f4e3edac2b49993c",
+      "bytes": 3329,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/protocol/types.ts"
+    },
+    {
+      "path": "packages/mcp/src/protocol/content.ts",
+      "gitBlob": "771ef32c478d61215a963d5b9bb42c432082d139",
+      "bytes": 3621,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/protocol/content.ts"
+    },
+    {
+      "path": "packages/mcp/src/transports/transport.ts",
+      "gitBlob": "702f041df38494f3978c4123ae49287c47ee28fc",
+      "bytes": 2366,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/transports/transport.ts"
+    },
+    {
+      "path": "packages/mcp/src/transports/streamable-http.ts",
+      "gitBlob": "af9c922d27d7d65fb8fff1393cd1eb0d765d8bae",
+      "bytes": 18836,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/transports/streamable-http.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/package-manager.ts",
+      "gitBlob": "1ca63ebbb90bb1881ebba3e83fe49be0a6080724",
+      "bytes": 87307,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/package-manager.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/utils/frontmatter.ts",
+      "gitBlob": "544810737639169c71555a04c3d1c645468296ad",
+      "bytes": 1203,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/utils/frontmatter.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/diagnostics.ts",
+      "gitBlob": "20fb8024310eab6b1d990828a7c6652e562fbf69",
+      "bytes": 452,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/diagnostics.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/source-info.ts",
+      "gitBlob": "765395d64ded218d1fefd38d0d1123ae35184968",
+      "bytes": 1571,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/source-info.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions/runner.ts",
+      "gitBlob": "77712e677f91dde65d4d4db906a26b16bbd9de9c",
+      "bytes": 52023,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/extensions/runner.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/extensions/wrapper.ts",
+      "gitBlob": "3d9399c2b0371bab48e62c51d427736c55d52616",
+      "bytes": 1208,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/extensions/wrapper.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/nested-tool-calls.ts",
+      "gitBlob": "ad5b79e63c1ce2b5b73141830bfb0d8ecd57148e",
+      "bytes": 8897,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/nested-tool-calls.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/core/resolve-config-value.ts",
+      "gitBlob": "6d75b001e7c9e796484c1d09d59a5c81816397b3",
+      "bytes": 9339,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/core/resolve-config-value.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/mcp/resources.ts",
+      "gitBlob": "c93ae4c80b18f58cbb2defa8ec0be5cc1f950da5",
+      "bytes": 13116,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/mcp/resources.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/mcp/oauth.ts",
+      "gitBlob": "b1ca5601a0aec3f67af7f9abd9570cbf11429519",
+      "bytes": 22702,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/mcp/oauth.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/tool-search/tool.ts",
+      "gitBlob": "1841ebd9763d2e1b73ff5ec8ef1c54819d9f43be",
+      "bytes": 9194,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/tool-search/tool.ts"
+    },
+    {
+      "path": "packages/coding-agent/src/extensions/codemode/tool.ts",
+      "gitBlob": "b55a117a7d2ec38d882439f0a16ad59676d46530",
+      "bytes": 19469,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/src/extensions/codemode/tool.ts"
+    },
+    {
+      "path": "packages/codemode/src/runtime/prelude-source.ts",
+      "gitBlob": "945eb9fb8088ff2219c782d3feeed2725d941915",
+      "bytes": 19905,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/codemode/src/runtime/prelude-source.ts"
+    },
+    {
+      "path": "packages/mcp/src/auth-provider.ts",
+      "gitBlob": "c1d9e70ca68a886a3d36ca16a3fe35e218625424",
+      "bytes": 871,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/auth-provider.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/callback.ts",
+      "gitBlob": "d087c4340762543ed8c7e8d5e3ae18ecc6bdae3d",
+      "bytes": 5743,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/callback.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/discovery.ts",
+      "gitBlob": "1d348ca98ff8b48ce691615cb6479f9b62c9279a",
+      "bytes": 7911,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/discovery.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/errors.ts",
+      "gitBlob": "4e625e10dc1630ed634614b78eaa7477c2db39c2",
+      "bytes": 1775,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/errors.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/flow.ts",
+      "gitBlob": "937a5369facf936617b7a8bb6fdc52b739a25561",
+      "bytes": 19685,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/flow.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/index.ts",
+      "gitBlob": "c599681ceb44b6b3fa095e3b25db2aedd6505266",
+      "bytes": 1302,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/index.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/provider.ts",
+      "gitBlob": "850634e76459dc217c9c94fe297715fd4355b412",
+      "bytes": 6097,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/provider.ts"
+    },
+    {
+      "path": "packages/mcp/src/oauth/types.ts",
+      "gitBlob": "df555256476c3956caac3926610a8301d894d686",
+      "bytes": 7885,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/mcp/src/oauth/types.ts"
+    },
+    {
+      "path": "packages/coding-agent/test/mcp-conformance/baseline.json",
+      "gitBlob": "0401d64b04da978dc0e26acf1c15eff387f0500e",
+      "bytes": 10763,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/test/mcp-conformance/baseline.json"
+    },
+    {
+      "path": "packages/coding-agent/test/mcp-conformance/client.ts",
+      "gitBlob": "636bf62b778df7873ec3475caa07eda321fc3ea4",
+      "bytes": 7795,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/test/mcp-conformance/client.ts"
+    },
+    {
+      "path": "packages/coding-agent/test/mcp-conformance/run.ts",
+      "gitBlob": "365d28cbd2cb70f0af9b8ca549c09a689be14f48",
+      "bytes": 12832,
+      "url": "https://github.com/earendil-works/pi/blob/42cb822f1c5d3153069dd0661bfd297424666cf1/packages/coding-agent/test/mcp-conformance/run.ts"
+    }
+  ],
+  "implementationReport": "docs/plugins/pi-swift-core-implementation-review.md"
+}

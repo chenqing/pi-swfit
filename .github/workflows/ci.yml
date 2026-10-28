@@ -1,0 +1,19 @@
+name: Swift
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Build and test
+        run: swift test
+      - name: CLI integration (offline fixtures)
+        run: python3 scripts/smoke-cli.py
+      - name: Build release CLI
+        run: swift build -c release --product pf
