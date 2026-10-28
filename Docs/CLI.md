@@ -20,7 +20,7 @@ The native tool schemas match the reviewed upstream versions: `read(path, offset
 - `PF_AGENT_DIR` / `--agent-dir` defaults to `~/.pf/agent`; upstream Pi's global directory is not modified. Project `.pi` resources are read only with `--trust-project`.
 - `--base-url` and `--api` configure custom endpoints. HTTP is accepted only on loopback; other endpoints use HTTPS.
 - `--demo` exercises the real session pipeline with deterministic output, without credentials, network or tools.
-- Live use requires explicit model routing (`--model` or `PF_MODEL`) or a saved Playground connection. `--connection NAME_OR_ID` selects one; `--list-connections` lists names, IDs and endpoints without credentials. With no routing flags, resume uses the session’s saved connection, otherwise the default saved connection.
+- Live use requires explicit model routing (`--model` or `PF_MODEL`) or a saved Pi Swift connection. `--connection NAME_OR_ID` selects one; `--list-connections` lists names, IDs and endpoints without credentials. With no routing flags, resume uses the session’s saved connection, otherwise the default saved connection.
 - Unknown flags fail with an explicit message. Unsupported commands are not silently ignored.
 - Text reads are UTF-8 only, capped at 10 MiB input and 2000 lines/50 KiB per result. Image reads, exact upstream diff formatting, fuzzy matching, shell progress updates and shell environment hooks are not ported.
 - Edits use exact, unique, non-overlapping matches against the original file. A failed match leaves the file unchanged. Atomic text writes are used. The native host records a bounded textual diff in tool-result details.
@@ -40,9 +40,9 @@ pf --provider openai --api openai-completions \
 
 `python3 scripts/smoke-cli.py` starts a loopback SSE fixture, invokes the compiled `pf`, checks a real model-request → read-tool → model-response cycle, checks JSONL, session continuation, stdin and failure exit status. It uses a temporary directory and a synthetic key.
 
-## Sharing with Playground
+## Sharing with Pi Swift
 
-Save a connection and choose a workspace in Playground, then quit the app before continuing the same session in `pf`:
+Save a connection and choose a workspace in Pi Swift, then quit the app before continuing the same session in `pf`:
 
 ```sh
 cd /path/to/project
@@ -54,4 +54,4 @@ Connection names must be unambiguous; IDs always work. `--connection` cannot be 
 
 First Keychain access by `pf` may need approval in an interactive terminal. Noninteractive runs disable legacy Keychain dialogs and report missing authorization instead of hanging. Rebuilding an unsigned executable can require authorization again. `PF_API_KEY` is a per-process alternative for unattended runs. A saved key is never redirected to a changed profile endpoint: credential accounts include the profile ID, endpoint, API format and provider.
 
-CLI tools retain their existing noninteractive execution policy. The Playground’s per-call approval is a UI host policy; it does not silently become a terminal prompt in `pf`.
+CLI tools retain their existing noninteractive execution policy. Pi Swift’s per-call approval is a UI host policy; it does not silently become a terminal prompt in `pf`.

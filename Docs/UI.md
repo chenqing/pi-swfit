@@ -27,7 +27,7 @@ Every tool requires a per-call decision by default. An existing host `beforeTool
 ## Compose
 
 ```swift
-ConversationView(session: session)
+ConversationView(session: session, brandIcon: Image("YourAppIcon"))
     .chatTheme(ChatTheme(accent: .teal, contentWidth: 680))
 
 // Replace the complete message renderer when you need custom Markdown,
@@ -42,11 +42,11 @@ ConversationView(session: session) { message in
 ## Interaction
 
 - Cmd-Return sends; multiline text input remains native. Drafts can be prepared while the agent works.
-- Scroll upward to inspect history; “Back to latest” restores following. Switching demo layout keeps the same session.
+- Scroll upward to inspect history; “Back to latest” restores following. Toggling the sidebar keeps the same session and draft.
 - Tool details expand in place. Approval arguments stay visible; the decision applies to one call.
 - Copy actions, native text selection, keyboard focus, accessibility labels and light/dark appearance are included.
 - **More → Model & workspace** saves non-secret routing in `connections.json` and the API key in Keychain. The selected folder supplies the coding-tool working directory.
-- **More → Resume conversation** lists saved conversations for that workspace. New conversation preserves the previous JSONL file; quitting and reopening restores the last selection.
+- The collapsible left sidebar lists and searches saved conversations for the selected workspace. New conversation preserves the previous JSONL file; quitting and reopening restores the last selection.
 - `edit` and `write` show a bounded, colored diff before approval and preserve it with their tool result. Changes while approval is pending cause the operation to fail rather than overwrite the newer file.
 
 ## First release limits
@@ -55,7 +55,7 @@ No attachment upload, image message view, reference/question components, branch 
 
 ## Presentation
 
-The Playground combines its title and actions in one native window toolbar with a single-line title and three actions; scenarios, appearance and model settings live in More. Conversation content starts 12 pt below the toolbar; the opaque native toolbar keeps scrolled text from showing behind its title and actions. User text sits in a trailing, content-sized bubble; assistant text uses an unboxed paragraph layout. Tool rows disclose details on demand. Copy is available on hover, through the context menu, and as an accessibility action. The composer starts at one line and expands up to eight; approval arguments fit their content up to a scrollable 100 pt limit, and diff previews have a separate 180 pt limit. The same session can switch between full-width and 440 pt companion layouts.
+Pi Swift combines its title and actions in one native window toolbar with a text-only title, sidebar toggle and More menu; scenarios, appearance and model settings live in More. Conversation content starts 12 pt below the toolbar; the opaque native toolbar keeps scrolled text from showing behind its title and actions. User text sits in a trailing, content-sized bubble; assistant text uses an unboxed paragraph layout. Tool rows disclose details on demand. Copy is available on hover, through the context menu, and as an accessibility action. The composer uses a 14 pt corner radius, grows from one to eight lines, and shows its circular send action only for nonblank text. Pi Swift places an Add menu inside the leading edge, with approval policy and the model/settings control in a separate footer; approval arguments fit their content up to a scrollable 100 pt limit, and diff previews have a separate 180 pt limit. The 232 pt sidebar uses quiet selection and hover states, a new-conversation action and a bottom model/workspace entry. It refreshes after responses and on app activation so CLI-written sessions are discoverable. Cmd-N starts a conversation; Control-Cmd-S toggles the sidebar. Resizing the window keeps the composer and transcript usable in a narrow column.
 
 ## Persistent coding session
 
@@ -77,7 +77,7 @@ await chat.shutdown()
 
 The session owns persistence and the original model transcript. Restoration projects user/assistant text and tool results into UI rows; it does not resubmit old tool calls. Every coding tool asks for approval, including reads and shell commands. The selected workspace is a working directory, not a sandbox: absolute paths and bash can reach outside it.
 
-The Playground does not automatically trust project `.pi` resources. Connections and working-directory choices are saved locally; conversation drafts and in-flight network requests are not resumed. Imported CLI sessions need a saved connection association (`pf --connection NAME --session PATH`) before the Playground can reopen them. See [HOST.md](HOST.md).
+Pi Swift does not automatically trust project `.pi` resources. Connections and working-directory choices are saved locally; conversation drafts and in-flight network requests are not resumed. Imported CLI sessions need a saved connection association (`pf --connection NAME --session PATH`) before Pi Swift can reopen them. See [HOST.md](HOST.md).
 
 
 ## Markdown rendering
@@ -87,3 +87,6 @@ The Playground does not automatically trust project `.pi` resources. Connections
 Parsing runs off the main actor. Each visible message coalesces streaming deltas at a 60 ms cadence and updates once more with the newest source. Incomplete fenced code remains a code block. Cancelling a render prevents stale results from replacing a later message; completed replies are not reparsed when unrelated view state changes.
 
 Only HTTP, HTTPS and mailto links are interactive. Images display their alternative text, and raw HTML is shown literally; rendering a reply does not fetch images or execute HTML. Tables honor column alignment and scroll horizontally in a narrow companion layout. **More → Scenarios → Rich Markdown** provides a deterministic streaming fixture for all these blocks.
+
+
+`ComposerContext` lets a host supply the model label, approval label, settings action and text-file insertion action. Pi Swift's Add menu inserts UTF-8 file text (up to 128 KiB) into the draft; it does not upload an attachment or submit a message. The draft stays editable during generation. The model control is disabled while a request is running, and permissions remain explicit per tool call. Empty input has no send button; Cmd-Return sends nonblank input and Return inserts a newline.

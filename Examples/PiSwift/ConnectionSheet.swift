@@ -5,7 +5,7 @@ import PiHost
 import PiUI
 
 struct ConnectionSheet: View {
-    let workspace: PlaygroundWorkspace
+    let workspace: AppWorkspace
     @Environment(\.dismiss) private var dismiss
     @State private var profiles: [ConnectionProfile] = []
     @State private var selectedID = "new"

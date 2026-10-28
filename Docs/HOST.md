@@ -12,7 +12,7 @@ Default root: `~/.pf/agent`, overridden by `PF_AGENT_DIR` / CLI `--agent-dir`.
 - `playground.json`: last workspace, connection ID and session path. Drafts and pending approvals are not persisted.
 - `*.lock`: advisory locks held by an open host. Empty lock files may remain after exit; the operating system releases ownership when the process ends. Upstream Pi and third-party readers that do not use this host do not honor these locks.
 
-A `pf.connection` custom session entry records the selected profile ID without injecting it into model context. Explicit CLI model routing clears that association; to resume that session in Playground, first associate a saved connection through `pf --connection NAME --session PATH`.
+A `pf.connection` custom session entry records the selected profile ID without injecting it into model context. Explicit CLI model routing clears that association; to resume that session in Pi Swift, first associate a saved connection through `pf --connection NAME --session PATH`.
 
 ## Credentials
 
@@ -29,9 +29,9 @@ This is not a filesystem sandbox. The workspace determines relative-path resolut
 ## Reproduce native acceptance locally
 
 ```sh
-python3 scripts/playground-fixture.py
+python3 scripts/app-fixture.py
 # In another terminal, use the printed agent_dir to isolate configuration/history:
-PF_AGENT_DIR=/printed/agent_dir ./scripts/run-playground.sh
+PF_AGENT_DIR=/printed/agent_dir ./scripts/run-app.sh
 ```
 
 Connect to the printed endpoint with model `fixture` and key `local-fixture-only`, choose the printed workspace, then ask to read and update `sample.txt`. The fixture exercises real loopback HTTP/SSE, read/edit approval, the actual filesystem, Keychain storage and JSONL persistence. Quit the app, run `pf --continue` in that workspace with the same `PF_AGENT_DIR`, then reopen the app. This is a deterministic local fixture, not proof of any external provider's behavior.

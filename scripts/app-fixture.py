@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Local-only OpenAI-compatible fixture for manual Playground read/edit/resume QA.
+"""Local-only OpenAI-compatible fixture for manual Pi Swift read/edit/resume QA.
 
 Creates a temporary workspace. Enter the printed endpoint, model `fixture`, and
-key `local-fixture-only` in Playground. No external provider is contacted.
+key `local-fixture-only` in Pi Swift. No external provider is contacted.
 """
 import http.server
 import json
 from pathlib import Path
 import tempfile
 
-root = Path(tempfile.mkdtemp(prefix='pi-playground-qa-'))
+root = Path(tempfile.mkdtemp(prefix='pi-swift-qa-'))
 workspace = root / 'workspace'
 workspace.mkdir()
 (workspace / 'sample.txt').write_text('Hello from Pi.\n')

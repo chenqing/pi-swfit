@@ -31,7 +31,7 @@ public enum PFCLI {
     Swift-specific options:
       --base-url URL           Provider endpoint, including /v1 where required
       --api NAME               openai-completions, openai-responses, anthropic-messages
-      --connection NAME       Saved connection name or ID from Playground
+      --connection NAME       Saved connection name or ID from Pi Swift
       --list-connections      List saved connections (no secrets)
       --agent-dir PATH         Default: ~/.pf/agent (or PF_AGENT_DIR)
       --trust-project          Load the current project's .pi resources/settings
@@ -103,7 +103,7 @@ public enum PFCLI {
         if args.demo {
             model = Model(id: "offline-demo", name: "Offline demo", api: "openai-completions", provider: "demo", baseUrl: "https://example.invalid")
         } else if let profile { model = try profile.model() } else {
-            guard let id = args.model ?? env["PF_MODEL"], !id.isEmpty else { throw PiError("Specify --model ID, PF_MODEL, or save a connection in Playground") }
+            guard let id = args.model ?? env["PF_MODEL"], !id.isEmpty else { throw PiError("Specify --model ID, PF_MODEL, or save a connection in Pi Swift") }
             let registry = createModels()
             if let known = registry.getModel(args.provider, id), args.baseURL == nil, args.api == nil { model = known }
             else {

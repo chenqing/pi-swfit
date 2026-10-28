@@ -7,11 +7,13 @@ import AppKit
 public struct ConversationView<MessageContent: View>: View {
     @Bindable private var session: ChatSession
     private let renderMessage: (ChatMessage) -> MessageContent
+    private let brandIcon: Image?
+    private let composerContext: ComposerContext?
     @Environment(\.chatTheme) private var theme
     @State private var followsBottom = true
     @State private var distance: CGFloat = 0
-    public init(session: ChatSession, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
-        self.session = session; renderMessage = message
+    public init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
+        self.session = session; self.brandIcon = brandIcon; self.composerContext = composerContext; renderMessage = message
     }
     public var body: some View {
         VStack(spacing: 0) {
@@ -56,16 +58,20 @@ public struct ConversationView<MessageContent: View>: View {
                 } else if session.state == .cancelled {
                     Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Composer(text: $session.draft, isRunning: session.isRunning,
+                Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
                          send: { Task { await session.send() } }, stop: { session.stop() })
             }.padding(.horizontal, 24).padding(.bottom, 20).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
         }
     }
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("π").font(.system(size: 42, weight: .regular, design: .serif))
-                .foregroundStyle(theme.accent).frame(width: 62, height: 62)
-                .background(theme.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+            if let brandIcon {
+                brandIcon.resizable().interpolation(.high).frame(width: 72, height: 72).accessibilityHidden(true)
+            } else {
+                Text("π").font(.system(size: 42, weight: .regular, design: .serif))
+                    .foregroundStyle(theme.accent).frame(width: 62, height: 62)
+                    .background(theme.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+            }
             VStack(alignment: .leading, spacing: 10) {
                 Text("Room for a good idea.").font(.system(size: 28, weight: .medium, design: .rounded)).tracking(-0.6)
                 Text("A conversation, a few useful tools, and you in control.")
@@ -90,7 +96,9 @@ public struct ConversationView<MessageContent: View>: View {
 
 }
 public extension ConversationView where MessageContent == MessageView {
-    init(session: ChatSession) { self.init(session: session) { MessageView(message: $0) } }
+    init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil) {
+        self.init(session: session, brandIcon: brandIcon, composerContext: composerContext) { MessageView(message: $0) }
+    }
 }
 
 private struct ScrollMetrics: NSViewRepresentable {

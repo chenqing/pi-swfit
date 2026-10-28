@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Examples/PiSwift/Assets/AppIcon.png" width="112" height="112" alt="Pi Swift icon">
+</p>
+
 # Pi Swift
 
 **A native Swift agent runtime, a small coding CLI, and composable chat UI.**
@@ -8,6 +12,19 @@ Community Swift port of [earendil-works/pi](https://github.com/earendil-works/pi
 
 The repository is named **`pi-swfit`**. The product is **Pi Swift**, and the command is **`pf`**.
 
+## A quiet native interface
+
+![Pi Swift in the Celadon light theme](Docs/Images/pi-swift-light.png)
+
+<details>
+<summary>Dark appearance and compact window</summary>
+
+![Pi Swift in the Celadon dark theme](Docs/Images/pi-swift-dark.png)
+
+</details>
+
+Native Markdown, copyable code, reviewable changes, and a conversation that fits beside your work. Screenshots use local demonstration fixtures; no external model or personal conversation is shown. [Icon and theme](Docs/BRAND.md).
+
 ## Try it
 
 Requires macOS 14+ and a Swift 6 toolchain. Apple Silicon is the validated platform. No Node runtime is needed for Swift products; the optional upstream MCP conformance runner uses Node.
@@ -16,10 +33,10 @@ Requires macOS 14+ and a Swift 6 toolchain. Apple Silicon is the validated platf
 git clone https://github.com/chenqing/pi-swfit.git
 cd pi-swfit
 swift run pf --demo -p "Hello"
-./scripts/run-playground.sh
+./scripts/run-app.sh
 ```
 
-The Playground starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream/rich-Markdown scenarios, light/dark appearance, and a compact layout.
+Pi Swift starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream/rich-Markdown scenarios, light/dark appearance, and a collapsible sidebar with search and saved conversations. The script builds `.build/Pi Swift.app` with its icon and resource bundle; `./scripts/build-app.sh release` creates a local release build without opening it.
 
 ## `pf` — Pi for Swift
 
@@ -92,7 +109,7 @@ struct DemoView: View {
 
 For an in-memory model, create `ChatSession(options: AgentOptions(...))`. For a persistent coding workspace, use `ChatSession.openCoding(cwd:profile:store:sessionFile:)`. Both routes consume runtime events; they do not rebuild the model transcript from display text. See [native UI integration](Docs/UI.md) and [shared host storage](Docs/HOST.md). Branch navigation and specialized compaction/retry UI are still outside this release.
 
-After saving a connection in Playground, quit it to release the active session, then run from that workspace:
+After saving a connection in Pi Swift, quit it to release the active session, then run from that workspace:
 
 ```sh
 pf --list-connections

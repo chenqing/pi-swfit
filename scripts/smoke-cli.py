@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='pf-smoke-') as temporary:
         events = [json.loads(line) for line in json_run.stdout.splitlines()]
         assert any(e['type']=='tool_execution_end' and not e['isError'] for e in events)
         assert any(e['type']=='message_end' and e['message'].get('role')=='assistant' for e in events)
-        # The same routing file is written by Playground; batch automation can supply an explicit key.
+        # The same routing file is written by Pi Swift; batch automation can supply an explicit key.
         profile = {'id':'saved-fixture','name':'Saved fixture','modelID':'fixture','api':'openai-completions',
                    'endpoint':f'http://127.0.0.1:{server.server_port}/v1','provider':'custom'}
         (directory/'agent/connections.json').write_text(json.dumps({'profiles':[profile],'defaultID':'saved-fixture'}))

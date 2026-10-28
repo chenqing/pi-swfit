@@ -93,7 +93,7 @@ ConversationView(session: session)
 4. Review the proposed change.
    - Inspect the diff.
    - Keep the original conversation.
-5. Continue in `pf` or Playground.
+5. Continue in `pf` or Pi Swift.
 
 | Layer | Responsibility | Surface |
 | :--- | :--- | ---: |

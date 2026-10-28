@@ -6,7 +6,7 @@ import PiHost
 import PiCodingAgent
 
 @MainActor @Observable
-final class PlaygroundWorkspace {
+final class AppWorkspace {
     var session: ChatSession?
     var profile: ConnectionProfile?
     var error: String?
@@ -14,6 +14,23 @@ final class PlaygroundWorkspace {
     var connection = "Offline demo"
     let store = ConnectionStore()
     var cwd: String? { session?.workspace }
+
+    func insertTextFile(_ url: URL) async throws {
+        guard let target = session else { return }
+        let content = try await Task.detached {
+            let file = try FileHandle(forReadingFrom: url)
+            defer { try? file.close() }
+            let data = try file.read(upToCount: 128 * 1024 + 1) ?? Data()
+            guard data.count <= 128 * 1024 else { throw PiError("Choose a text file smaller than 128 KB.") }
+            guard let text = String(data: data, encoding: .utf8), !text.contains("\0") else {
+                throw PiError("This file is not UTF-8 text. Choose a source file or plain text document.")
+            }
+            return text
+        }.value
+        guard session === target else { throw PiError("The conversation changed. Insert the file again in the new conversation.") }
+        guard !content.isEmpty else { return }
+        target.draft += (target.draft.isEmpty ? "" : "\n\n") + content
+    }
 
     func start() async {
         guard session == nil, !busy else { return }

@@ -56,3 +56,6 @@ jobs:
       - name: Build release CLI
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: swift build -c release --product pf
+      - name: Bundle macOS app
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: ./scripts/build-app.sh

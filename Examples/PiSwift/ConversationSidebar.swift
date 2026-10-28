@@ -1,0 +1,118 @@
+#if os(macOS)
+import SwiftUI
+import AppKit
+import PiCodingAgent
+
+/// A host-level navigator over the same on-disk conversations used by pf.
+struct ConversationSidebar: View {
+    let workspace: AppWorkspace
+    let configure: () -> Void
+    @State private var sessions: [SessionInfo] = []
+    @State private var query = ""
+    @State private var loading = false
+    @State private var loadError: String?
+    @State private var refresh = UUID()
+    @State private var hovered: String?
+
+    private var locked: Bool { workspace.busy || workspace.session?.isRunning == true }
+    private var filtered: [SessionInfo] {
+        sessions.filter { query.isEmpty || title($0).localizedCaseInsensitiveContains(query) }
+    }
+    private var refreshKey: String {
+        "\(workspace.cwd ?? "")|\(workspace.session?.sessionFile ?? "")|\(workspace.session?.isRunning == true)|\(refresh)"
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { Task { await workspace.newConversation() } } label: {
+                Label("New conversation", systemImage: "plus.circle")
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
+                    .contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(locked).keyboardShortcut("n", modifiers: .command)
+                .padding(.top, 8)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search conversations", text: $query).textFieldStyle(.plain)
+                    .accessibilityLabel("Search conversations")
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
+                }
+            }.font(.system(size: 12)).padding(.horizontal, 12).padding(.vertical, 10)
+
+            Text(workspace.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Conversations")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                .lineLimit(1).padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 8)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    if (workspace.session?.sessionFile == nil || (workspace.session?.messages.isEmpty == true && !sessions.contains { $0.path == workspace.session?.sessionFile })) && query.isEmpty {
+                        Label(workspace.profile == nil ? "Offline demo" : "New conversation", systemImage: "bubble.left")
+                            .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12).padding(.vertical, 9)
+                            .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 7))
+                    }
+                    ForEach(filtered, id: \.path) { info in
+                        Button { Task { await open(info) } } label: {
+                            Text(title(info)).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12).padding(.vertical, 9)
+                                .contentShape(Rectangle())
+                                .background(.primary.opacity(info.path == workspace.session?.sessionFile ? 0.075 : hovered == info.path ? 0.035 : 0),
+                                            in: RoundedRectangle(cornerRadius: 7))
+                        }.buttonStyle(.plain).disabled(locked)
+                            .onHover { hovered = $0 ? info.path : nil }
+                            .help("\(title(info))\n\(info.modified.formatted(date: .abbreviated, time: .shortened))")
+                            .accessibilityAddTraits(info.path == workspace.session?.sessionFile ? .isSelected : [])
+                    }
+                    if loading && sessions.isEmpty {
+                        ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(16)
+                    } else if filtered.isEmpty {
+                        Text(query.isEmpty ? (workspace.cwd == nil ? "Connect a model and workspace to save conversations." : "Saved conversations appear here after a response.") : "No matching conversations")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3).padding(12)
+                    }
+                    if let loadError {
+                        Text(loadError).font(.caption).foregroundStyle(.red).padding(12)
+                        Button("Retry") { refresh = UUID() }.padding(.horizontal, 12)
+                    }
+                }
+            }
+            Spacer(minLength: 12)
+            Button(action: configure) {
+                HStack(spacing: 10) {
+                    Image(systemName: "slider.horizontal.3").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(workspace.profile?.name ?? "Model & workspace").lineLimit(1)
+                        Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(.tertiary)
+                }.padding(12).contentShape(Rectangle())
+            }.buttonStyle(.plain).disabled(locked).help("Model & workspace")
+                .accessibilityLabel("Model & workspace").padding(.bottom, 8)
+        }.font(.system(size: 13)).padding(.horizontal, 8)
+            .background(PiBrand.sidebar)
+            .task(id: refreshKey) { await reload() }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh = UUID() }
+    }
+    private func title(_ info: SessionInfo) -> String {
+        info.name ?? (info.firstMessage.isEmpty ? "Untitled conversation" : info.firstMessage)
+    }
+    private func reload() async {
+        loadError = nil
+        guard let cwd = workspace.cwd else { sessions = []; loading = false; return }
+        loading = true
+        do {
+            let result = try await SessionManager.list(cwd, workspace.store.paths.sessionDirectory(cwd: cwd))
+            guard !Task.isCancelled else { return }
+            sessions = result.sorted { $0.modified > $1.modified }
+        } catch {
+            guard !Task.isCancelled else { return }
+            sessions = []; loadError = "Couldn’t load conversations. \(error)"
+        }
+        loading = false
+    }
+    private func open(_ info: SessionInfo) async {
+        do { try await workspace.resume(info) }
+        catch { workspace.error = String(describing: error) }
+    }
+}
+#endif
