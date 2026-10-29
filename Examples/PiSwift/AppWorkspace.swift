@@ -13,6 +13,10 @@ final class AppWorkspace {
     var busy = false
     var connection = "Offline demo"
     let store = ConnectionStore()
+    var profiles: [ConnectionProfile] = []
+    var libraryRevision = 0
+    var library: ConversationLibrary { ConversationLibrary(paths: store.paths) }
+    var title: String { session?.name ?? session?.messages.first(where: { $0.role == .user })?.text ?? "New conversation" }
     var cwd: String? { session?.workspace }
 
     func insertTextFile(_ url: URL) async throws {
@@ -36,6 +40,7 @@ final class AppWorkspace {
         guard session == nil, !busy else { return }
         busy = true; defer { busy = false }
         do {
+            try refreshProfiles()
             if let bookmark = try WorkspaceBookmark.load(paths: store.paths),
                let profile = try store.load().profile(bookmark.connectionID) {
                 let file = bookmark.sessionFile.flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
@@ -52,9 +57,40 @@ final class AppWorkspace {
         busy = true; defer { busy = false }
         let store = self.store
         try await Task.detached { try store.save(profile, apiKey: key) }.value
+        try refreshProfiles()
         let next = try await ChatSession.openCoding(cwd: cwd, profile: profile, store: store)
         await replace(next, profile: profile)
         remember()
+    }
+    func refreshProfiles() throws { profiles = try store.load().profiles.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
+    func selectConnection(_ profile: ConnectionProfile) async {
+        guard !busy, session?.isRunning != true, let session, session.workspace != nil, profile.id != self.profile?.id else { return }
+        busy = true; defer { busy = false }
+        do {
+            try await session.selectConnection(profile, store: store)
+            self.profile = profile; connection = profile.name; remember()
+        } catch { self.error = String(describing: error) }
+    }
+    func rename(_ info: SessionInfo, title: String) throws {
+        if session?.sessionFile == info.path { try session?.rename(title) }
+        else { try library.rename(info.path, title: title) }
+        libraryRevision += 1
+    }
+    func pin(_ info: SessionInfo, pinned: Bool) {
+        do { try library.update(info.path, pinned: pinned); libraryRevision += 1 }
+        catch { self.error = String(describing: error) }
+    }
+    func archive(_ info: SessionInfo, archived: Bool) async {
+        guard !busy, session?.isRunning != true else { return }
+        busy = true; defer { busy = false }
+        do {
+            // Finish the new-session operation before hiding the current conversation.
+            if archived, session?.sessionFile == info.path {
+                let draft = session?.draft ?? ""
+                try await session?.reset(); session?.draft = draft; remember()
+            }
+            try library.update(info.path, archived: archived); libraryRevision += 1
+        } catch { self.error = String(describing: error) }
     }
     func resume(_ info: SessionInfo) async throws {
         guard session?.isRunning != true, !busy else { throw PiError("Wait for the current operation to finish") }

@@ -38,6 +38,7 @@ struct AppView: View {
     @State private var windowSize = CGSize.zero
     private var detailsFit: Bool { windowSize.width >= (showsSidebar ? 1080 : 848) }
     @State private var showsDetails = true
+    @State private var detailsExpansion = DetailsExpansion()
     @State private var showsCompactDetails = false
     @State private var appearance = "system"
     @State private var insertError: String?
@@ -56,11 +57,15 @@ struct AppView: View {
                         }
                         ConversationView(session: session, brandIcon: Image(nsImage: PiBrand.icon),
                                          composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
-                                             configure: { sheet = .connection }, addTextFile: insertTextFile))
+                                             configure: { sheet = .connection }, addTextFile: insertTextFile,
+                                             modelChoices: workspace.cwd == nil ? [] : workspace.profiles.map { profile in
+                                                 ComposerContext.ModelChoice(id: profile.id, title: profile.modelID, detail: profile.name,
+                                                     selected: profile.id == workspace.profile?.id, select: { Task { await workspace.selectConnection(profile) } })
+                                             }))
                             .frame(maxWidth: .infinity)
                         if showsDetails && detailsFit {
-                            SessionDetails(workspace: workspace, session: session,
-                                           configure: { sheet = .connection }, close: { showsDetails = false })
+                            SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion,
+                                           openChange: { sheet = .change($0) }, close: { showsDetails = false })
                                 .id(ObjectIdentifier(session)).frame(width: 288)
                         }
                     }
@@ -92,6 +97,9 @@ struct AppView: View {
                     Group {
                         switch destination {
                         case .connection: ConnectionSheet(workspace: workspace)
+                        case .change(let change):
+                            ChangeReader(change: change, width: min(960, max(560, windowSize.width - 48)),
+                                         height: min(700, max(400, windowSize.height - 80)))
                         }
                     }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
                 }
@@ -112,8 +120,8 @@ struct AppView: View {
                 .accessibilityValue((detailsFit ? showsDetails : showsCompactDetails) ? "Shown" : "Hidden")
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .popover(isPresented: $showsCompactDetails, arrowEdge: .bottom) {
-                    SessionDetails(workspace: workspace, session: session,
-                                   configure: { showsCompactDetails = false; sheet = .connection },
+                    SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion, compact: true,
+                                   openChange: { showsCompactDetails = false; sheet = .change($0) },
                                    close: { showsCompactDetails = false })
                         .id(ObjectIdentifier(session)).frame(width: 300, height: min(600, max(380, windowSize.height - 30)))
                         .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
@@ -136,7 +144,8 @@ struct AppView: View {
                 ChatIcon(.sidebar, size: 18).frame(width: 28, height: 32)
             }.buttonStyle(.plain).help("Toggle sidebar").accessibilityLabel("Toggle sidebar")
                 .keyboardShortcut("s", modifiers: [.command, .control])
-            Text("Pi Swift").font(.system(size: 13, weight: .medium)).help(connection)
+            Text(workspace.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: 280, alignment: .leading).help(workspace.title)
         }.frame(height: 36).padding(.leading, 8)
     }
     private func insertTextFile() {
@@ -164,8 +173,11 @@ struct AppView: View {
                 Text(connection)
                 if let cwd = workspace.cwd { Text(URL(fileURLWithPath: cwd).lastPathComponent) }
                 Button("Show conversations", systemImage: ChatSymbol.sidebar.rawValue) { showsSidebar = true }
-                Button("Model & workspace…", systemImage: ChatSymbol.settings.rawValue) { sheet = .connection }
+                Button("Manage connections…", systemImage: ChatSymbol.settings.rawValue) { sheet = .connection }
                     .disabled(session.isRunning)
+                if let file = session.sessionFile {
+                    Button("Reveal saved session", systemImage: "doc.text") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file)]) }
+                }
                 Divider()
                 Menu("Scenarios") {
                     ForEach(DemoScenario.allCases, id: \.self) { scenario in
@@ -188,9 +200,12 @@ struct AppView: View {
     }
 }
 
-private enum AppSheet: String, Identifiable {
+private enum AppSheet: Identifiable {
     case connection
-    var id: String { rawValue }
+    case change(RecordedChange)
+    var id: String {
+        switch self { case .connection: "connection"; case .change(let value): "change-" + value.id }
+    }
 }
 
 #else

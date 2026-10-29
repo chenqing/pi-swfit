@@ -23,7 +23,9 @@ public final class ChatSession {
     }
     public var usage: ChatUsageSummary { ChatUsageSummary(messages: messages) }
     public let availableToolNames: [String]
-    public let modelName: String
+    public private(set) var modelName: String
+    public private(set) var name: String?
+    public private(set) var isChangingConnection = false
     public var draft = ""
     public let approvals: ApprovalCenter
     public var isRunning: Bool { active }
@@ -59,7 +61,7 @@ public final class ChatSession {
 
     public func send(_ text: String? = nil) async {
         let input = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !input.isEmpty, !isRunning else { return }
+        guard !input.isEmpty, !isRunning, !isChangingConnection else { return }
         draft = ""; error = nil; state = .running; active = true; assistantID = nil
         approvals.reset()
         messages.append(ChatMessage(role: .user, text: input))
@@ -96,13 +98,13 @@ public final class ChatSession {
     }
 
     public func reset() async throws {
-        guard !isRunning else { return }
+        guard !isRunning, !isChangingConnection else { return }
         if let old = codingHost {
             let next = try await old.newConversation()
             codingHost = next; agent = next.session.agent
             await old.shutdown()
         } else { try await agent.reset() }
-        messages = []; draft = ""; error = nil; state = .idle; assistantID = nil
+        messages = []; draft = ""; error = nil; state = .idle; assistantID = nil; name = nil
         approvals.reset()
     }
 
@@ -139,7 +141,23 @@ public final class ChatSession {
 
     private init(host: CodingSessionHost, approvals: ApprovalCenter, state: AgentState) {
         availableToolNames = state.tools.map(\.name).sorted(); modelName = state.model.name
+        name = host.manager.getSessionName()
         codingHost = host; agent = host.session.agent; self.approvals = approvals
+    }
+
+    public func selectConnection(_ profile: ConnectionProfile, store: ConnectionStore) async throws {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Open an idle workspace before switching models") }
+        isChangingConnection = true; defer { isChangingConnection = false }
+        let key = try await Task.detached { try store.key(for: profile) }.value
+        try await host.selectConnection(profile, key: key)
+        modelName = profile.modelID
+    }
+
+    public func rename(_ title: String) throws {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Wait for the conversation to be idle") }
+        let title = try ConversationLibrary.validTitle(title)
+        try host.manager.appendSessionInfo(title)
+        name = title
     }
 
     public func shutdown() async {

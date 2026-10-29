@@ -22,7 +22,7 @@ struct ConnectionSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Model & workspace").font(.title2.weight(.semibold))
             Text("Keys stay in your Mac’s Keychain. Conversations are saved locally and shared with pf.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !profiles.isEmpty {
                 Picker("Connection", selection: $selectedID) {
                     Text("New connection").tag("new")

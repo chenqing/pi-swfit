@@ -2,12 +2,24 @@ import SwiftUI
 
 /// Host-owned controls; the composer does not choose models or alter tool permissions.
 public struct ComposerContext {
+    public struct ModelChoice: Identifiable {
+        public let id: String
+        public let title: String
+        public let detail: String
+        public let selected: Bool
+        public let select: () -> Void
+        public init(id: String, title: String, detail: String, selected: Bool, select: @escaping () -> Void) {
+            self.id = id; self.title = title; self.detail = detail; self.selected = selected; self.select = select
+        }
+    }
     public var model: String
     public var policy: String
     public var configure: () -> Void
     public var addTextFile: () -> Void
-    public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void) {
+    public var modelChoices: [ModelChoice]
+    public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = []) {
         self.model = model; self.policy = policy; self.configure = configure; self.addTextFile = addTextFile
+        self.modelChoices = modelChoices
     }
 }
 
@@ -72,13 +84,22 @@ public struct Composer: View {
                     .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "Return to send · ⇧ Return for a new line")
                 Spacer(minLength: 8)
                 if let context {
-                    Button(action: context.configure) {
-                        HStack(spacing: 4) {
-                            Text(context.model).lineLimit(1).truncationMode(.middle)
-                            ChatIcon(.down, size: 10)
-                        }.frame(maxWidth: 220, alignment: .trailing).contentShape(Rectangle())
-                    }.buttonStyle(.plain).disabled(isRunning)
-                        .help("Model & workspace · \(context.model)").accessibilityLabel("Model: \(context.model)")
+                    Menu {
+                        if context.modelChoices.isEmpty { Text("No saved models for this workspace") }
+                        ForEach(context.modelChoices) { choice in
+                            Button(action: choice.select) {
+                                if choice.selected { Label("\(choice.title) · \(choice.detail)", systemImage: "checkmark") }
+                                else { Text("\(choice.title) · \(choice.detail)") }
+                            }
+                        }
+                        Divider()
+                        Button("Manage connections…", action: context.configure)
+                    } label: {
+                        Text(context.model).lineLimit(1).truncationMode(.middle)
+                            .frame(maxWidth: 220, alignment: .trailing)
+                    }.menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize().disabled(isRunning)
+                        .tint(.primary)
+                        .help("Choose model · \(context.model)").accessibilityLabel("Model: \(context.model)")
                 }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
         }

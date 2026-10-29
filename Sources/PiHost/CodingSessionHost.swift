@@ -14,16 +14,16 @@ public final class CodingSessionHost: Sendable {
     public let diagnostics: [ResourceDiagnostic]
     public let cwd: String
     public let paths: HostPaths
-    public let connectionID: String?
-    private let options: AgentOptions
+    public var connectionID: String? { configuration.current.connectionID }
+    private let configuration: Locked<(options: AgentOptions, connectionID: String?)>
     private let projectTrusted: Bool
     private let lease: HostFileLock?
 
     private init(created: CreateAgentSessionResult, manager: SessionManager, cwd: String, paths: HostPaths,
                  options: AgentOptions, projectTrusted: Bool, connectionID: String?, lease: HostFileLock?) {
         session = created.session; diagnostics = created.resourceDiagnostics; self.manager = manager
-        self.cwd = cwd; self.paths = paths; self.options = options; self.projectTrusted = projectTrusted
-        self.connectionID = connectionID; self.lease = lease
+        self.cwd = cwd; self.paths = paths; self.projectTrusted = projectTrusted
+        configuration = Locked((options, connectionID)); self.lease = lease
     }
     public static func open(cwd inputCwd: String, paths: HostPaths = .init(), manager: SessionManager? = nil,
                             options: AgentOptions, projectTrusted: Bool = false,
@@ -62,8 +62,26 @@ public final class CodingSessionHost: Sendable {
 
     public func newConversation() async throws -> CodingSessionHost {
         let manager = try SessionManager.create(cwd, self.manager.getSessionDir())
-        return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: options,
-                                   projectTrusted: projectTrusted, connectionID: connectionID)
+        let current = configuration.current
+        return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: current.options,
+                                   projectTrusted: projectTrusted, connectionID: current.connectionID)
+    }
+    /// Switches an idle host without reopening its transcript or releasing its file lease.
+    public func selectConnection(_ profile: ConnectionProfile, key: String?) async throws {
+        let model = try profile.model()
+        let manager = self.manager, configuration = self.configuration
+        try await session.agent.update { agent in
+            guard !agent.state.isStreaming else { throw PiError("Wait for the current response to finish") }
+            // Persist before changing the live route. A failed write leaves the current route intact.
+            _ = try manager.appendCustomEntry("pf.connection", .string(profile.id))
+            agent.state.model = model
+            agent.getApiKey = { _ in key }
+            configuration.withLock {
+                var initial = $0.options.initialState ?? AgentInitialState()
+                initial.model = model; $0.options.initialState = initial
+                $0.options.getApiKey = { _ in key }; $0.connectionID = profile.id
+            }
+        }
     }
     public func shutdown() async { await session.shutdown(); lease?.release() }
 }
