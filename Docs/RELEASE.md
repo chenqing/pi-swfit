@@ -13,3 +13,8 @@ The source must be committed; the version must match `pf --version`. Builds run 
 Each build targets the current Mac's architecture; it is not a universal binary. Check the executable's actual minimum OS and linked libraries before claiming support beyond the tested machine. Local launch and notarization do not establish clean-machine or Intel acceptance.
 
 Drag the app from the DMG into `/Applications`. Its CLI is `/Applications/Pi Swift.app/Contents/MacOS/pf`. The production bundle identifier is `dev.chenqing.pi-swift`; a separately identified QA app can coexist. The normal data directory is `~/.pf/agent`. A QA directory selected with `PF_AGENT_DIR` is not automatically migrated, and no user data or credentials are included in the package.
+
+
+## Published release
+
+[Pi Swift v0.1.0](https://github.com/chenqing/pi-swfit/releases/tag/v0.1.0) distributes build `2026102906` for macOS 14+ on Apple Silicon. The tag points to the binary's source revision `004b60216fb63e85b771c81129f4dd0ac6cc3c50`; subsequent commits record installation validation and download instructions. Assets contain the notarized DMG and `SHA256SUMS`. A fresh download was checked against the local validated DMG before publication.

@@ -20,7 +20,9 @@ Native Markdown, copyable code, reviewable changes, and a conversation that fits
 
 ## Try it
 
-Requires macOS 14+ and a Swift 6 toolchain. Apple Silicon is the validated platform. No Node runtime is needed for Swift products; the optional upstream MCP conformance runner uses Node.
+[Download Pi Swift for Apple Silicon](https://github.com/chenqing/pi-swfit/releases/latest) — macOS 14+, Developer ID signed and Apple-notarized. Open the DMG and drag Pi Swift into Applications. The app includes the `pf` CLI; release assets include SHA-256 checksums.
+
+Building from source requires macOS 14+ and a Swift 6 toolchain. Apple Silicon is the validated platform. No Node runtime is needed for Swift products; the optional upstream MCP conformance runner uses Node.
 
 ```sh
 git clone https://github.com/chenqing/pi-swfit.git
