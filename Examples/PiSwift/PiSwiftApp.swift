@@ -42,7 +42,10 @@ struct AppView: View {
     @State private var showsCompactDetails = false
     @State private var appearance = "system"
     @State private var insertError: String?
-    private let sidebarWidth: CGFloat = 232
+    @AppStorage("conversationSidebarWidth") private var savedSidebarWidth = 232.0
+    @State private var changeReader = ChangeReaderWindow()
+    private var sidebarMaximum: Double { min(360, max(200, windowSize.width - 400)) }
+    private var sidebarWidth: CGFloat { min(sidebarMaximum, max(200, savedSidebarWidth)) }
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -54,6 +57,7 @@ struct AppView: View {
                         if showsSidebar {
                             ConversationSidebar(workspace: workspace, configure: { sheet = .connection })
                                 .frame(width: sidebarWidth)
+                                .overlay(alignment: .trailing) { SidebarResizeHandle(width: $savedSidebarWidth, maximum: sidebarMaximum) }.zIndex(1)
                         }
                         ConversationView(session: session, brandIcon: Image(nsImage: PiBrand.icon),
                                          composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
@@ -61,11 +65,13 @@ struct AppView: View {
                                              modelChoices: workspace.cwd == nil ? [] : workspace.profiles.map { profile in
                                                  ComposerContext.ModelChoice(id: profile.id, title: profile.modelID, detail: profile.name,
                                                      selected: profile.id == workspace.profile?.id, select: { Task { await workspace.selectConnection(profile) } })
-                                             }))
+                                             })) { message in
+                                                 MessageView(message: message, openChange: openChange)
+                                             }
                             .frame(maxWidth: .infinity)
                         if showsDetails && detailsFit {
                             SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion,
-                                           openChange: { sheet = .change($0) }, close: { showsDetails = false })
+                                           openChange: openChange, close: { showsDetails = false })
                                 .id(ObjectIdentifier(session)).frame(width: 288)
                         }
                     }
@@ -92,14 +98,14 @@ struct AppView: View {
                 .task { await workspace.start() }
                 .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
                 .onChange(of: detailsFit) { showsCompactDetails = false }
+                .onChange(of: session?.sessionFile) { changeReader.close() }
                 .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
                 .sheet(item: $sheet) { destination in
                     Group {
                         switch destination {
                         case .connection: ConnectionSheet(workspace: workspace)
-                        case .change(let change):
-                            ChangeReader(change: change, width: min(960, max(560, windowSize.width - 48)),
-                                         height: min(700, max(400, windowSize.height - 80)))
+                        case .rename:
+                            ConversationTitleSheet(title: workspace.title) { try workspace.renameCurrent($0) }
                         }
                     }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
                 }
@@ -121,7 +127,7 @@ struct AppView: View {
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .popover(isPresented: $showsCompactDetails, arrowEdge: .bottom) {
                     SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion, compact: true,
-                                   openChange: { showsCompactDetails = false; sheet = .change($0) },
+                                   openChange: { showsCompactDetails = false; openChange($0) },
                                    close: { showsCompactDetails = false })
                         .id(ObjectIdentifier(session)).frame(width: 300, height: min(600, max(380, windowSize.height - 30)))
                         .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
@@ -138,14 +144,23 @@ struct AppView: View {
             .init(color: PiBrand.canvas, location: 1)
         ], startPoint: .leading, endPoint: .trailing)
     }
+    private func openChange(_ change: RecordedChange) {
+        let changes = session?.displayedMessages.flatMap(\.tools).compactMap(RecordedChange.init) ?? []
+        changeReader.present(changes: changes, selected: change.id, appearance: appearance)
+    }
     private var windowIdentity: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             Button { showsSidebar.toggle() } label: {
                 ChatIcon(.sidebar, size: 18).frame(width: 28, height: 32)
             }.buttonStyle(.plain).help("Toggle sidebar").accessibilityLabel("Toggle sidebar")
                 .keyboardShortcut("s", modifiers: [.command, .control])
-            Text(workspace.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                .frame(maxWidth: 280, alignment: .leading).help(workspace.title)
+                .frame(width: showsSidebar ? max(40, sidebarWidth - 96) : 40, alignment: .leading)
+            Button { sheet = .rename } label: {
+                Text(workspace.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    .frame(maxWidth: 240, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain).help("Rename conversation · " + workspace.title)
+                .accessibilityLabel("Rename conversation: " + workspace.title)
+                .disabled(session?.workspace == nil || session?.isRunning == true)
         }.frame(height: 36).padding(.leading, 8)
     }
     private func insertTextFile() {
@@ -202,9 +217,9 @@ struct AppView: View {
 
 private enum AppSheet: Identifiable {
     case connection
-    case change(RecordedChange)
+    case rename
     var id: String {
-        switch self { case .connection: "connection"; case .change(let value): "change-" + value.id }
+        switch self { case .connection: "connection"; case .rename: "rename" }
     }
 }
 

@@ -61,9 +61,7 @@ struct ComposerEditor: NSViewRepresentable {
             editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
             editor.undoManager?.removeAllActions()
         }
-        if focused, let window = editor.window, window.firstResponder !== editor {
-            window.makeFirstResponder(editor)
-        }
+        coordinator.requestFocus(focused, editor: editor)
         coordinator.measure()
     }
 
@@ -72,7 +70,17 @@ struct ComposerEditor: NSViewRepresentable {
     @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: ComposerEditor
         weak var scroll: ComposerScrollView?
+        private var lastRequestedFocus = false
         init(_ parent: ComposerEditor) { self.parent = parent }
+        func requestFocus(_ requested: Bool, editor: ComposerTextView) {
+            // A layout/state refresh must not reclaim focus from search or another field
+            // while the asynchronous resign callback is still catching up.
+            guard requested != lastRequestedFocus else { return }
+            lastRequestedFocus = requested
+            if requested, let window = editor.window, window.firstResponder !== editor {
+                window.makeFirstResponder(editor)
+            }
+        }
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? NSTextView else { return }
             parent.text = editor.string

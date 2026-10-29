@@ -5,11 +5,12 @@ import AppKit
 
 public struct MessageView: View {
     public let message: ChatMessage
+    private let openChange: ((RecordedChange) -> Void)?
     @Environment(\.chatTheme) private var theme
     @State private var copied = false
     @State private var hovered = false
     @FocusState private var copyFocused: Bool
-    public init(message: ChatMessage) { self.message = message }
+    public init(message: ChatMessage, openChange: ((RecordedChange) -> Void)? = nil) { self.message = message; self.openChange = openChange }
     public var body: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
             if message.role == .user {
@@ -50,7 +51,7 @@ public struct MessageView: View {
                     MarkdownMessage(message.text)
                 }
             }
-            ForEach(message.tools) { tool in ToolCallView(tool: tool) }
+            ForEach(message.tools) { tool in ToolCallView(tool: tool, openChange: openChange) }
         }
     }
     private func copyMessage() {
@@ -63,8 +64,10 @@ public struct MessageView: View {
 
 public struct ToolCallView: View {
     public let tool: ChatToolCall
+    private let openChange: ((RecordedChange) -> Void)?
+    @State private var rawExpanded = false
     @State private var expanded = false
-    public init(tool: ChatToolCall) { self.tool = tool }
+    public init(tool: ChatToolCall, openChange: ((RecordedChange) -> Void)? = nil) { self.tool = tool; self.openChange = openChange }
     private var symbol: ChatSymbol {
         switch tool.state {
         case .pending: .waiting
@@ -85,7 +88,10 @@ public struct ToolCallView: View {
                         if tool.state == .running { ProgressView().controlSize(.mini) }
                         else { ChatIcon(symbol, size: 13) }
                     }.frame(width: 16, height: 16)
-                    Text(tool.name).font(.system(size: 13))
+                    Text(tool.summary).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
+                    if let change = RecordedChange(tool: tool) {
+                        Text("+\(change.added) −\(change.removed)").font(.system(size: 11)).monospacedDigit()
+                    }
                     if tool.state != .succeeded {
                         Text("· " + status).font(.system(size: 12))
                     }
@@ -94,24 +100,30 @@ public struct ToolCallView: View {
                     Spacer(minLength: 0)
                 }.foregroundStyle(tool.state == .failed ? Color.red : .secondary)
                     .padding(.vertical, 5).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("\(tool.name), \(status)")
+            }.buttonStyle(.plain).accessibilityLabel("\(tool.summary), \(status)")
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
                 .help(expanded ? "Hide tool details" : "Show tool details")
             if expanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Arguments").font(.caption).foregroundStyle(.secondary)
-                    Text(tool.arguments.isEmpty ? "No arguments" : tool.arguments)
-                        .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    if !tool.output.isEmpty {
-                        Text("Result").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
-                        Text(tool.output).font(.system(size: 13)).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 10) {
+                    if let change = RecordedChange(tool: tool), let openChange {
+                        Button { openChange(change) } label: { Label("Read recorded diff", systemImage: "doc.text") }
+                            .buttonStyle(.borderless)
+                    } else if let diff = tool.diff {
+                        ScrollView([.horizontal, .vertical]) { DiffText(diff: diff) }.frame(maxHeight: 180)
                     }
-                    if let diff = tool.diff {
-                        Text("Changes").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                    DisclosureGroup("Raw arguments and result", isExpanded: $rawExpanded) {
                         ScrollView([.horizontal, .vertical]) {
-                            DiffText(diff: diff)
-                        }.frame(height: min(240, CGFloat(diff.components(separatedBy: "\n").count) * 17 + 8))
-                    }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Arguments").foregroundStyle(.secondary)
+                                Text(tool.arguments.isEmpty ? "No arguments" : tool.arguments)
+                                if !tool.output.isEmpty {
+                                    Text("Result").foregroundStyle(.secondary)
+                                    Text(tool.output)
+                                }
+                            }.font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                        }.frame(height: 160)
+                    }.font(.system(size: 12)).foregroundStyle(.secondary)
                     if tool.state == .interrupted {
                         Text("Stopped waiting. The tool may have already taken effect.").font(.caption).foregroundStyle(.secondary)
                     }

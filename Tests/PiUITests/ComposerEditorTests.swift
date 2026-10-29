@@ -1,10 +1,27 @@
 #if os(macOS)
 import AppKit
 import Testing
+import SwiftUI
 @testable import PiUI
 
 @MainActor
 struct ComposerEditorTests {
+    @Test func refreshingFocusedEditorDoesNotStealSearchFocus() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: .titled, backing: .buffered, defer: false)
+        let editor = ComposerTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 80))
+        let other = ComposerTextView(frame: NSRect(x: 0, y: 100, width: 200, height: 80))
+        window.contentView?.addSubview(editor); window.contentView?.addSubview(other)
+        let parent = ComposerEditor(text: .constant(""), focused: .constant(true), height: .constant(28), submit: {})
+        let coordinator = ComposerEditor.Coordinator(parent)
+        coordinator.requestFocus(true, editor: editor)
+        #expect(window.firstResponder === editor)
+        window.makeFirstResponder(other)
+        coordinator.requestFocus(true, editor: editor)
+        #expect(window.firstResponder === other)
+        coordinator.requestFocus(false, editor: editor)
+        coordinator.requestFocus(true, editor: editor)
+        #expect(window.firstResponder === editor)
+    }
     private func key(_ modifiers: NSEvent.ModifierFlags = [], repeatKey: Bool = false) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
                         windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",

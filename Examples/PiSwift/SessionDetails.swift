@@ -113,15 +113,12 @@ struct SessionDetails: View {
                 HStack(spacing: 7) {
                     if tool.state == .running { ProgressView().controlSize(.mini) }
                     else { ChatIcon(tool.state == .succeeded ? .check : tool.state == .failed ? .failure : .waiting, size: 12) }
-                    Text(tool.name)
-                    if let path = RecordedChange.path(for: tool) {
-                        Text(displayPath(path)).lineLimit(1).truncationMode(.middle)
-                    } else if tool.state != .succeeded { Text(tool.state.rawValue.capitalized).lineLimit(1) }
+                    Text(tool.summary).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
                     ChatIcon(.right, size: 9).rotationEffect(.degrees(expansion.rawTools.contains(tool.id) ? 90 : 0))
                 }.foregroundStyle(.secondary).padding(.vertical, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help("Show raw tool details")
-                .accessibilityLabel("\(tool.name), \(tool.state.rawValue)")
+                .accessibilityLabel("\(tool.summary), \(tool.state.rawValue)")
                 .accessibilityValue(expansion.rawTools.contains(tool.id) ? "Expanded" : "Collapsed")
             if expansion.rawTools.contains(tool.id) {
                 ScrollView {

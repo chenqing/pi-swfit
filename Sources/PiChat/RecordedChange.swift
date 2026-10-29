@@ -11,16 +11,9 @@ public struct RecordedChange: Identifiable, Sendable {
         guard let diff = tool.diff, !diff.isEmpty else { return nil }
         id = tool.id; self.diff = diff
         path = Self.path(for: tool) ?? tool.name
-        var added = 0, removed = 0, inHunk = false
-        for line in diff.components(separatedBy: "\n") {
-            if line.hasPrefix("diff --git ") { inHunk = false }
-            else if line.hasPrefix("@@ ") { inHunk = true }
-            else if inHunk {
-                if line.hasPrefix("+") { added += 1 }
-                if line.hasPrefix("-") { removed += 1 }
-            }
-        }
-        self.added = added; self.removed = removed
+        let lines = RecordedDiff(diff).lines
+        added = lines.filter { $0.kind == .added }.count
+        removed = lines.filter { $0.kind == .removed }.count
     }
     public static func path(for tool: ChatToolCall) -> String? {
         guard let data = tool.arguments.data(using: .utf8),

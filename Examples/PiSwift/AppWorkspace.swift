@@ -15,6 +15,13 @@ final class AppWorkspace {
     let store = ConnectionStore()
     var profiles: [ConnectionProfile] = []
     var libraryRevision = 0
+    private var drafts: [String: String] = [:]
+    private func saveDraft() {
+        if let session, let file = session.sessionFile { drafts[file] = session.draft }
+    }
+    func renameCurrent(_ title: String) throws {
+        try session?.rename(title); libraryRevision += 1
+    }
     var library: ConversationLibrary { ConversationLibrary(paths: store.paths) }
     var title: String { session?.name ?? session?.messages.first(where: { $0.role == .user })?.text ?? "New conversation" }
     var cwd: String? { session?.workspace }
@@ -87,6 +94,7 @@ final class AppWorkspace {
             // Finish the new-session operation before hiding the current conversation.
             if archived, session?.sessionFile == info.path {
                 let draft = session?.draft ?? ""
+                saveDraft()
                 try await session?.reset(); session?.draft = draft; remember()
             }
             try library.update(info.path, archived: archived); libraryRevision += 1
@@ -106,7 +114,7 @@ final class AppWorkspace {
     func newConversation() async {
         guard !busy, session?.isRunning != true else { return }
         busy = true; defer { busy = false }
-        do { try await session?.reset(); remember() }
+        do { saveDraft(); try await session?.reset(); remember() }
         catch { self.error = String(describing: error) }
     }
     func demo(_ scenario: DemoScenario, clearError: Bool = true) async {
@@ -125,7 +133,9 @@ final class AppWorkspace {
     }
     func shutdown() async { remember(); await session?.shutdown() }
     private func replace(_ next: ChatSession, profile: ConnectionProfile?) async {
+        saveDraft()
         let old = session
+        if let file = next.sessionFile { next.draft = drafts[file] ?? "" }
         session = next; self.profile = profile; connection = profile?.name ?? "Offline demo"; error = nil
         await old?.shutdown()
     }

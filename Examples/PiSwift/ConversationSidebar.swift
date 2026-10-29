@@ -117,7 +117,9 @@ struct ConversationSidebar: View {
             }.buttonStyle(SidebarButtonStyle()).disabled(locked).help("Model & workspace")
                 .accessibilityLabel("Model & workspace").padding(.bottom, 8)
         }.font(.system(size: 13)).padding(.horizontal, 8)
-            .sheet(item: $renameTarget) { RenameConversation(workspace: workspace, target: $0) }
+            .sheet(item: $renameTarget) { target in
+                ConversationTitleSheet(title: target.title) { try workspace.rename(target.info, title: $0) }
+            }
             .background(PiBrand.sidebar)
             .task(id: refreshKey) { await reload() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh = UUID() }
@@ -149,30 +151,6 @@ private struct RenameTarget: Identifiable {
     let info: SessionInfo
     let title: String
     var id: String { info.path }
-}
-private struct RenameConversation: View {
-    let workspace: AppWorkspace
-    let target: RenameTarget
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var error: String?
-    @FocusState private var focused: Bool
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Rename conversation").font(.headline)
-            TextField("Conversation title", text: $title).textFieldStyle(.roundedBorder).focused($focused)
-                .accessibilityLabel("Conversation title")
-            if let error { Text(error).foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true) }
-            HStack {
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Spacer()
-                Button("Save") {
-                    do { try workspace.rename(target.info, title: title); dismiss() }
-                    catch { self.error = String(describing: error) }
-                }.keyboardShortcut(.defaultAction).disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }.padding(24).frame(width: 380).onAppear { title = target.title; focused = true }
-    }
 }
 private struct ConversationRow<Actions: View>: View {
     let title: String
