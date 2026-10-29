@@ -58,12 +58,12 @@ private struct MarkdownBlockView: View {
         case .paragraph(let runs): MarkdownInline(runs: runs).font(theme.bodyFont)
         case .heading(let level, let runs):
             MarkdownInline(runs: runs)
-                .font(.system(size: level == 1 ? 25 : level == 2 ? 20 : level == 3 ? 17 : 15, weight: .semibold))
+                .font(.system(size: theme.textSize + (level == 1 ? 10 : level == 2 ? 5 : level == 3 ? 2 : 0), weight: .semibold))
                 .padding(.top, 5).accessibilityAddTraits(.isHeader)
         case .code(let language, let source): MarkdownCodeBlock(language: language, source: source)
         case .quote(let blocks):
             HStack(alignment: .top, spacing: 12) {
-                MarkdownBlocks(blocks: blocks).foregroundStyle(.secondary)
+                MarkdownBlocks(blocks: blocks).foregroundStyle(ChatPalette.secondaryText)
             }.padding(.leading, 14).padding(.vertical, 3)
                 .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 2).fill(theme.accent.opacity(0.35)).frame(width: 3) }
         case .list(let items):
@@ -75,7 +75,7 @@ private struct MarkdownBlockView: View {
                                 Image(systemName: checked ? "checkmark.square.fill" : "square")
                                     .foregroundStyle(checked ? theme.accent : .secondary)
                                     .accessibilityLabel(checked ? "Completed" : "Not completed")
-                            } else { Text(item.marker).foregroundStyle(.secondary) }
+                            } else { Text(item.marker).foregroundStyle(ChatPalette.secondaryText) }
                         }.font(theme.bodyFont).frame(minWidth: 20, alignment: .trailing).padding(.top, 2)
                         MarkdownBlocks(blocks: item.blocks)
                     }
@@ -89,6 +89,7 @@ private struct MarkdownBlockView: View {
 }
 
 private struct MarkdownInline: View {
+    @Environment(\.chatTheme) private var theme
     let runs: [MarkdownRun]
     var body: some View {
         Text(attributed).lineSpacing(4).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
@@ -100,7 +101,7 @@ private struct MarkdownInline: View {
             if run.emphasis { intent.insert(.emphasized) }
             if run.strong { intent.insert(.stronglyEmphasized) }
             if run.strike { intent.insert(.strikethrough) }
-            if run.code { intent.insert(.code); part.font = .system(size: 13, design: .monospaced); part.backgroundColor = .primary.opacity(0.045) }
+            if run.code { intent.insert(.code); part.font = .system(size: theme.codeSize, design: .monospaced); part.backgroundColor = .primary.opacity(0.045) }
             part.inlinePresentationIntent = intent
             part.link = run.link
             result += part
@@ -109,6 +110,8 @@ private struct MarkdownInline: View {
 }
 
 private struct MarkdownCodeBlock: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.chatTheme) private var theme
     let language: String?
     let source: String
     @State private var copied = false
@@ -127,19 +130,21 @@ private struct MarkdownCodeBlock: View {
                         .frame(minWidth: 52, alignment: .trailing).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("Copy code").accessibilityLabel(copied ? "Code copied" : "Copy code")
                     .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }
-            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).padding(.horizontal, 14).padding(.vertical, 8)
+            }.font(.system(size: 11, weight: .medium)).foregroundStyle(ChatPalette.secondaryText).padding(.horizontal, 14).padding(.vertical, 8)
             Rectangle().fill(.primary.opacity(0.055)).frame(height: 1)
             ScrollView([.horizontal, .vertical]) {
-                Text(displayed.isEmpty ? " " : displayed).font(.system(size: 13, design: .monospaced))
+                Text(displayed.isEmpty ? " " : displayed).font(.system(size: theme.codeSize, design: .monospaced))
                     .lineSpacing(4).textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-            }.frame(height: min(360, CGFloat(displayed.components(separatedBy: "\n").count) * 20 + 28))
+            }.frame(height: min(360, CGFloat(displayed.components(separatedBy: "\n").count) * (theme.codeSize + 7) + 28))
         }.background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
-            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(0.07), lineWidth: 1) }
+            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(contrast == .increased ? 0.4 : 0.07), lineWidth: 1) }
     }
 }
 
 private struct MarkdownTable: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.chatTheme) private var theme
     let headers: [[MarkdownRun]]
     let rows: [[[MarkdownRun]]]
     let alignments: [MarkdownAlignment]
@@ -149,14 +154,14 @@ private struct MarkdownTable: View {
                 row(headers, header: true)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, cells in row(cells, header: false) }
             }.background(.primary.opacity(0.02)).clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.07), lineWidth: 1) }
+                .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(contrast == .increased ? 0.4 : 0.07), lineWidth: 1) }
         }.fixedSize(horizontal: false, vertical: true)
     }
     private func row(_ cells: [[MarkdownRun]], header: Bool) -> some View {
         GridRow(alignment: .top) {
             ForEach(Array(cells.enumerated()), id: \.offset) { index, runs in
                 let alignment: Alignment = index < alignments.count && alignments[index] == .right ? .trailing : index < alignments.count && alignments[index] == .center ? .center : .leading
-                MarkdownInline(runs: runs).font(.system(size: 13, weight: header ? .semibold : .regular))
+                MarkdownInline(runs: runs).font(.system(size: theme.codeSize, weight: header ? .semibold : .regular))
                     .frame(width: 160, alignment: alignment).padding(12)
                     .background(header ? Color.primary.opacity(0.035) : .clear)
                     .overlay(alignment: .bottom) { Rectangle().fill(.primary.opacity(0.06)).frame(height: 1) }

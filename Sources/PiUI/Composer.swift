@@ -47,6 +47,9 @@ public struct Composer: View {
     private let context: ComposerContext?
     private let identity: String
     private let focusRequest: Int
+    @Environment(\.chatTheme) private var theme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var focused = false
     @State private var editorHeight: CGFloat = 28
     @State private var addingContent = false
@@ -78,7 +81,7 @@ public struct Composer: View {
                     Button { addingContent.toggle() } label: {
                         ChatIcon(.add, size: 18)
                             .frame(width: 28, height: 28).contentShape(RoundedRectangle(cornerRadius: 6))
-                    }.buttonStyle(ComposerControlStyle()).foregroundStyle(.secondary)
+                    }.buttonStyle(ComposerControlStyle()).foregroundStyle(ChatPalette.secondaryText)
                         .help("Add content").accessibilityLabel("Add content")
                         .popover(isPresented: $addingContent, arrowEdge: .top) {
                             Button {
@@ -110,9 +113,9 @@ public struct Composer: View {
                         .onTapGesture { focused = true; fallbackFocused = true }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.primary.opacity(focused ? 0.20 : 0.10), lineWidth: 1))
+                    .strokeBorder((focused ? theme.accent : Color.primary.opacity(contrast == .increased ? 0.5 : 0.14)), lineWidth: focused ? 2 : 1))
                 .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
-                .animation(.easeOut(duration: 0.15), value: focused)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: focused)
             HStack(spacing: 12) {
                 if let context, let mode = context.permissionMode, let select = context.selectPermissionMode {
                     Button { choosingPermissions.toggle() } label: {
@@ -156,7 +159,7 @@ public struct Composer: View {
                         .tint(.primary)
                         .help("Choose model · \(context.model)").accessibilityLabel("Model: \(context.model)")
                 }
-            }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
+            }.font(.system(size: 12)).foregroundStyle(ChatPalette.secondaryText).padding(.horizontal, 12).frame(minHeight: 20)
         }
         .onChange(of: text) { commandIndex = 0; dismissedCommands = false }
         .onChange(of: identity) { commandIndex = 0; dismissedCommands = false }
@@ -197,7 +200,7 @@ public struct Composer: View {
             .help("Return to send · Shift-Return for a new line")
         #else
         TextField("Ask something…", text: $text, axis: .vertical)
-            .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(1...8)
+            .textFieldStyle(.plain).font(.system(size: theme.editorSize)).lineLimit(1...8)
             .focused($fallbackFocused).accessibilityLabel("Message").padding(.vertical, 4)
         #endif
     }

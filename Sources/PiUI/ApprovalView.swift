@@ -24,13 +24,15 @@ public struct ApprovalView: View {
                     .onPreferenceChange(ApprovalArgumentsHeight.self) { argumentsHeight = $0 }
             }
             HStack {
-                Text("Permission for this call only").font(.caption).foregroundStyle(.secondary)
+                Text("Permission for this call only").font(.caption).foregroundStyle(ChatPalette.secondaryText)
                 Spacer()
                 Button("Decline") { decide(false) }.buttonStyle(ChatButtonStyle())
                 Button("Allow") { decide(true) }.buttonStyle(ChatButtonStyle(.primary))
             }
         }.padding(16).background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tool approval")
+        .onAppear { ChatAccessibility.announce("Permission required for \(approval.toolName). Review the request, then choose Allow or Decline.") }
     }
 }
 

@@ -7,7 +7,7 @@
 3. Add equivalent line-oriented pf commands, using saved connections and leased session hosts. Keep non-interactive prompts unchanged.
 4. Test parser, draft/error behavior, real session persistence and CLI interaction; inspect native light/dark layouts and keyboard behavior.
 
-This delivery covers `/new`, `/resume`, `/name`, `/model`, `/settings`, `/compact`, `/session`, `/copy`, and native `/help`. pf also keeps `/quit` and `/exit`. Model selection uses saved connections, not upstream catalog discovery. Desktop settings opens the existing connection sheet; pf shows its current configuration and configuration paths.
+This delivery covers `/new`, `/resume`, `/name`, `/model`, `/settings`, `/compact`, `/session`, `/copy`, and native `/help`. pf also keeps `/quit` and `/exit`. Model selection uses saved connections, not upstream catalog discovery. Desktop `/settings` opens the standard macOS Settings window (General and Connections); pf shows its current configuration and configuration paths.
 
 Skills/templates/native-extension commands and dynamic completion are covered in Phase 3 below. Upstream reference: [builtin definitions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/slash-commands.ts), reviewed 2026-10-29. `/help` and `/exit` are native conveniences.
 

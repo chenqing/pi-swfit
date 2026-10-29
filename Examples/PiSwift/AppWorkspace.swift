@@ -22,6 +22,7 @@ final class AppWorkspace {
     var composerFocus = 0
     var searchTerm = ""
     var searchRequest = UUID()
+    var searchFocus = 0
     @ObservationIgnored private var draftSaveTask: Task<Void, Never>?
     private var drafts: ConversationDraftStore { ConversationDraftStore(paths: store.paths) }
     private func saveDraft() throws {

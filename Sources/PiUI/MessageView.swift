@@ -8,6 +8,7 @@ public struct MessageView: View {
     private let openChange: ((RecordedChange) -> Void)?
     @Environment(\.chatTheme) private var theme
     @Environment(\.showsMessageActions) private var showsActions
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var copied = false
     @State private var hovered = false
     @FocusState private var copyFocused: Bool
@@ -42,8 +43,8 @@ public struct MessageView: View {
             ChatIcon(copied ? .check : .copy, size: 14)
                 .frame(width: 28, height: 24).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).foregroundStyle(.secondary).focused($copyFocused)
-        .opacity(hovered || copied || copyFocused ? 1 : 0)
+        .buttonStyle(.plain).foregroundStyle(ChatPalette.secondaryText).focused($copyFocused)
+        .opacity(hovered || copied || copyFocused || contrast == .increased ? 1 : 0)
         .help("Copy message").accessibilityLabel("Copy message")
         .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }
     }
@@ -69,10 +70,12 @@ public struct MessageView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(message.text, forType: .string)
         copied = true
+        ChatAccessibility.announce("Message copied")
     }
 }
 
 public struct ToolCallView: View {
+    @Environment(\.chatTheme) private var theme
     public let tool: ChatToolCall
     private let openChange: ((RecordedChange) -> Void)?
     @State private var rawExpanded = false
@@ -98,7 +101,7 @@ public struct ToolCallView: View {
                         if tool.state == .running { ProgressView().controlSize(.mini) }
                         else { ChatIcon(symbol, size: 13) }
                     }.frame(width: 16, height: 16)
-                    Text(tool.summary).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
+                    Text(tool.summary).font(.system(size: theme.codeSize)).lineLimit(1).truncationMode(.middle)
                     if let change = RecordedChange(tool: tool) {
                         Text("+\(change.added) −\(change.removed)").font(.system(size: 11)).monospacedDigit()
                     }
@@ -108,7 +111,7 @@ public struct ToolCallView: View {
                     ChatIcon(.right, size: 10)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                     Spacer(minLength: 0)
-                }.foregroundStyle(tool.state == .failed ? Color.red : .secondary)
+                }.foregroundStyle(tool.state == .failed ? Color.red : ChatPalette.secondaryText)
                     .padding(.vertical, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel("\(tool.summary), \(status)")
                 .accessibilityValue(expanded ? "Expanded" : "Collapsed")
@@ -124,18 +127,18 @@ public struct ToolCallView: View {
                     DisclosureGroup("Raw arguments and result", isExpanded: $rawExpanded) {
                         ScrollView([.horizontal, .vertical]) {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Arguments").foregroundStyle(.secondary)
+                                Text("Arguments").foregroundStyle(ChatPalette.secondaryText)
                                 Text(tool.arguments.isEmpty ? "No arguments" : tool.arguments)
                                 if !tool.output.isEmpty {
-                                    Text("Result").foregroundStyle(.secondary)
+                                    Text("Result").foregroundStyle(ChatPalette.secondaryText)
                                     Text(tool.output)
                                 }
-                            }.font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
+                            }.font(.system(size: theme.codeSize, design: .monospaced)).textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(8)
                         }.frame(height: 160)
-                    }.font(.system(size: 12)).foregroundStyle(.secondary)
+                    }.font(.system(size: 12)).foregroundStyle(ChatPalette.secondaryText)
                     if tool.state == .interrupted {
-                        Text("Stopped waiting. The tool may have already taken effect.").font(.caption).foregroundStyle(.secondary)
+                        Text("Stopped waiting. The tool may have already taken effect.").font(.caption).foregroundStyle(ChatPalette.secondaryText)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
                     .background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))

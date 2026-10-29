@@ -45,7 +45,7 @@ public struct ConversationView<MessageContent: View>: View {
                                 Button { moveMatch(1, proxy: proxy) } label: { Image(systemName: "chevron.down") }
                                     .accessibilityLabel("Next match").disabled(matches.isEmpty)
                                 Button(action: closeSearch) { Image(systemName: "xmark") }.accessibilityLabel("Close search results")
-                            }.font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8).padding(.trailing, trailingAccessoryWidth)
+                            }.font(.caption).foregroundStyle(ChatPalette.secondaryText).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8).padding(.trailing, trailingAccessoryWidth)
                         }
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
@@ -60,7 +60,7 @@ public struct ConversationView<MessageContent: View>: View {
                                 if session.isRunning && session.approvals.pending.isEmpty {
                                     HStack(spacing: 8) {
                                         ProgressView().controlSize(.small)
-                                        Text(session.state == .stopping ? "Stopping…" : "Working…").font(.caption).foregroundStyle(.secondary)
+                                        Text(session.state == .stopping ? "Stopping…" : "Working…").font(.caption).foregroundStyle(ChatPalette.secondaryText)
                                     }.padding(.top, 12)
                                 }
                                 Color.clear.frame(height: 1).id("bottom")
@@ -82,7 +82,7 @@ public struct ConversationView<MessageContent: View>: View {
                                             .background(.regularMaterial, in: Circle())
                                             .overlay { Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 1) }
                                             .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
-                                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                    }.buttonStyle(.plain).foregroundStyle(ChatPalette.secondaryText)
                                         .help("Back to latest").accessibilityLabel("Back to latest").padding(.bottom, 8)
                                         .frame(maxWidth: .infinity).padding(.trailing, trailingAccessoryWidth)
                                 }
@@ -112,13 +112,18 @@ public struct ConversationView<MessageContent: View>: View {
                             }.font(.caption).buttonStyle(.borderless)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     } else if session.state == .cancelled {
-                        Text(session.cancellationMessage).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(session.cancellationMessage).font(.caption).foregroundStyle(ChatPalette.secondaryText).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
                              identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
                              send: { Task { await session.send() } }, stop: { session.stop() })
                 }.padding(.horizontal, geometry.size.width - trailingAccessoryWidth < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity).padding(.trailing, trailingAccessoryWidth)
             }
+        }
+        .onChange(of: session.state) { oldState, newState in
+            guard oldState != newState else { return }
+            if newState == .completed { ChatAccessibility.announce("Response complete") }
+            else if newState == .cancelled { ChatAccessibility.announce(session.cancellationMessage) }
         }
     }
     private func moveMatch(_ step: Int, proxy: ScrollViewProxy) {
@@ -142,7 +147,7 @@ public struct ConversationView<MessageContent: View>: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Room for a good idea.").font(.system(size: 28, weight: .medium, design: .rounded)).tracking(-0.6)
                 Text("A conversation, a few useful tools, and you in control.")
-                    .font(.system(size: 14)).foregroundStyle(.secondary).lineSpacing(4)
+                    .font(.system(size: 14)).foregroundStyle(ChatPalette.secondaryText).lineSpacing(4)
             }
             VStack(alignment: .leading, spacing: 8) {
                 suggestion("Walk me through the architecture", symbol: "square.stack.3d.up")
@@ -153,7 +158,7 @@ public struct ConversationView<MessageContent: View>: View {
     private func suggestion(_ text: String, symbol: String) -> some View {
         Button { appendToDraft(text) } label: {
             HStack(spacing: 10) {
-                Image(systemName: symbol).font(.system(size: 16, weight: .regular)).foregroundStyle(.secondary).frame(width: 18)
+                Image(systemName: symbol).font(.system(size: 16, weight: .regular)).foregroundStyle(ChatPalette.secondaryText).frame(width: 18)
                 Text(text).font(.system(size: 13))
                 Spacer()
                 Image(systemName: "arrow.up.left").font(.system(size: 11)).foregroundStyle(.tertiary)

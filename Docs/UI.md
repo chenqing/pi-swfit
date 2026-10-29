@@ -153,3 +153,14 @@ Type `/` at the start of the composer to search native commands. Up/Down selects
 `/new`, `/resume`, `/name`, `/model`, `/settings`, `/compact`, `/session`, `/copy` and `/help` route through the native host before model prompting. Resume/model/name selectors keep the command draft when canceled. Failed commands preserve input, appending the original command if newer text has been entered during the operation. Normal prose and `/skill:name` continue through the existing prompt path. Local commands never become user transcript messages. Management commands cannot run during a response; `/compact` uses the session's existing model-backed compaction and Stop cancellation. No new session format is introduced.
 
 Model choices are saved connections; settings opens the connection editor. `/thinking`, `/tree`, `/fork`, resource discovery/completion and upstream TUI-specific commands remain future phases in [SLASH_COMMANDS.md](SLASH_COMMANDS.md).
+
+
+## macOS settings, keyboard and accessibility
+
+Pi Swift → Settings… (Command-Comma) and `/settings` open the same native Settings scene. General stores appearance and a 13–22 pt conversation reading size; Connections opens the existing model/workspace editor. Reading size affects messages, headings, code, tables, tool summaries and the composer. It survives relaunch and does not replace drafts or reset their undo history. IME marked text defers font changes until composition ends.
+
+File contains New Conversation. Edit contains Find in Conversations (Command-F); Return opens the first filtered conversation and Escape clears search and returns to the composer. View provides sidebar (Control-Command-S), session details (Option-Command-I), Focus Message Editor (Command-L), and Larger/Smaller/Actual Size (Command-Plus/Minus/0). Conversation commands are disabled in Settings and modal sheets. Help opens the current command catalog.
+
+Outside slash completion, Tab/Shift-Tab follows AppKit's key-view loop; Option-Tab can insert a literal tab. Slash completion and IME candidate handling retain their own Tab behavior. Enable macOS Keyboard navigation to include buttons in the Tab loop. Focused composer, search and conversation controls show a focus outline.
+
+Status/error messages, approval requests, response completion/cancellation and keyboard slash selection post accessibility announcements without moving focus or announcing each streamed token. Decorative status icons are hidden from accessibility. Secondary text uses a stronger adaptive color; composer, feedback and code/table borders respond to increased contrast, and composer focus animation respects Reduce Motion. This is incremental HIG alignment, not a claim of complete VoiceOver or HIG conformance.

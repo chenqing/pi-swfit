@@ -15,13 +15,8 @@ struct PiSwiftApp: App {
         Window("Pi Swift", id: "main") { AppView(workspace: workspace).frame(minWidth: 640, minHeight: 560).onAppear { delegate.workspace = workspace } }
             .defaultSize(width: 1200, height: 760).windowStyle(.hiddenTitleBar)
             .windowToolbarStyle(.unified)
-            .commands {
-                CommandGroup(replacing: .newItem) {
-                    Button("New conversation") { Task { await workspace.newConversation() } }
-                        .keyboardShortcut("n", modifiers: .command)
-                        .disabled(workspace.busy || workspace.session == nil || workspace.session?.isRunning == true)
-                }
-            }
+            .commands { ConversationCommands() }
+        Settings { AppSettings(workspace: workspace) }
     }
 }
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -42,6 +37,8 @@ struct AppView: View {
     private var session: ChatSession? { workspace.session }
     private var connection: String { workspace.connection }
     @State private var sheet: AppSheet?
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage("conversationTextSize") private var textSize = 15.0
     @AppStorage("showsConversationSidebar") private var showsSidebar = true
     @State private var windowSize = CGSize.zero
     private var detailsFit: Bool { windowSize.width >= (showsSidebar ? 1080 : 848) }
@@ -98,7 +95,10 @@ struct AppView: View {
                         .accessibilityHidden(true)
                 }
                 .toolbar {
-                    ToolbarItem(placement: .navigation) { windowIdentity.id(showsSidebar) }
+                    // Separate native items keep title sizing and AX labels stable
+                    // while the sidebar item's reserved width changes.
+                    ToolbarItem(placement: .navigation) { sidebarControl.id(showsSidebar) }
+                    ToolbarItem(placement: .navigation) { conversationTitle }
                     ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
                     ToolbarItemGroup(placement: .primaryAction) {
                         detailsButton
@@ -106,9 +106,17 @@ struct AppView: View {
                     }
                 }
                 .toolbarBackground(.hidden, for: .windowToolbar)
-                .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent, textSize: textSize))
                 .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
                 .disabled(workspace.busy)
+                .focusedSceneValue(\.conversationMenu, sheet == nil && !workspace.busy ? ConversationMenuActions(
+                    newConversation: { Task { await workspace.newConversation() } },
+                    canCreateConversation: session != nil && session?.isRunning != true,
+                    find: { showsSidebar = true; workspace.searchFocus += 1 },
+                    focusComposer: { workspace.composerFocus += 1 },
+                    toggleSidebar: { showsSidebar.toggle() }, toggleDetails: toggleDetails,
+                    help: { sheet = .command(.information(CommandDescriptor.help(session?.commands ?? CommandDescriptor.builtins())), "") },
+                    showsSidebar: showsSidebar, showsDetails: detailsFit ? showsDetails : showsCompactDetails) : nil)
                 .task { await workspace.start() }
                 .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
                 .onChange(of: detailsFit) { showsCompactDetails = false }
@@ -124,7 +132,7 @@ struct AppView: View {
                         case .rename:
                             ConversationTitleSheet(title: workspace.title) { try workspace.renameCurrent($0) }
                         }
-                    }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                    }.chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent, textSize: textSize))
                 }
                 .alert("Couldn’t insert text", isPresented: Binding(get: { insertError != nil }, set: { if !$0 { insertError = nil } })) {
                     Button("OK") { insertError = nil }
@@ -133,23 +141,23 @@ struct AppView: View {
     }
     @ViewBuilder private var detailsButton: some View {
         if let session {
-            Button {
-                if detailsFit { showsDetails.toggle() } else { showsCompactDetails.toggle() }
-            } label: {
+            Button(action: toggleDetails) {
                 Image(systemName: "sidebar.right").font(.system(size: 18, weight: .regular))
                     .frame(width: 28, height: 32)
                     .background(.primary.opacity((detailsFit ? showsDetails : showsCompactDetails) ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 6))
             }.buttonStyle(.plain).help("Session details · ⌥⌘I").accessibilityLabel("Session details")
                 .accessibilityValue((detailsFit ? showsDetails : showsCompactDetails) ? "Shown" : "Hidden")
-                .keyboardShortcut("i", modifiers: [.command, .option])
                 .popover(isPresented: $showsCompactDetails, arrowEdge: .bottom) {
                     SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion, compact: true,
                                    openChange: { showsCompactDetails = false; openChange($0) },
                                    close: { showsCompactDetails = false })
                         .id(ObjectIdentifier(session)).frame(width: 300, height: min(600, max(380, windowSize.height - 30)))
-                        .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                        .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent, textSize: textSize))
                 }
         }
+    }
+    private func toggleDetails() {
+        if detailsFit { showsDetails.toggle() } else { showsCompactDetails.toggle() }
     }
     private var windowBackground: some View {
         HStack(spacing: 0) {
@@ -161,21 +169,23 @@ struct AppView: View {
         let changes = session?.displayedMessages.flatMap(\.tools).compactMap(RecordedChange.init) ?? []
         changeReader.present(changes: changes, selected: change.id, appearance: appearance)
     }
-    private var windowIdentity: some View {
-        HStack(spacing: 0) {
-            Button { showsSidebar.toggle() } label: {
-                ChatIcon(.sidebar, size: 18).frame(width: 28, height: 32)
-            }.buttonStyle(.plain).help("Toggle sidebar").accessibilityLabel("Toggle sidebar")
-                .keyboardShortcut("s", modifiers: [.command, .control])
-                .frame(width: showsSidebar ? max(40, sidebarWidth - 96) : 40, alignment: .leading)
-            Button { sheet = .rename } label: {
-                Text(workspace.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                    .frame(maxWidth: 240, alignment: .leading).contentShape(Rectangle())
-            }.buttonStyle(.plain).help("Rename conversation · " + workspace.title)
-                .accessibilityLabel("Rename conversation: " + workspace.title)
-                .padding(.leading, showsSidebar ? 24 : 8)
-                .disabled(session?.workspace == nil || session?.isRunning == true)
-        }.frame(height: 36).padding(.leading, 8)
+    private var sidebarControl: some View {
+        Button { showsSidebar.toggle() } label: {
+            ChatIcon(.sidebar, size: 18).frame(width: 28, height: 32)
+        }.buttonStyle(.plain).help("Toggle sidebar").accessibilityLabel("Toggle sidebar")
+            .accessibilityIdentifier("conversation-sidebar-toggle")
+            .frame(width: showsSidebar ? max(40, sidebarWidth - 96) : 40, alignment: .leading)
+            .frame(height: 36).padding(.leading, 8)
+    }
+    private var conversationTitle: some View {
+        Button { sheet = .rename } label: {
+            Text(workspace.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: 240, alignment: .leading).contentShape(Rectangle())
+        }.buttonStyle(.plain).help("Rename conversation · " + workspace.title)
+            .accessibilityLabel("Rename conversation: " + workspace.title)
+            .accessibilityIdentifier("conversation-title")
+            .padding(.leading, showsSidebar ? 24 : 0).frame(height: 36)
+            .disabled(session?.workspace == nil || session?.isRunning == true)
     }
     private func handleCommand(_ input: String) {
         guard let target = session, !target.isRunning, !workspace.busy else { return }
@@ -210,7 +220,7 @@ struct AppView: View {
                             let warnings = try await target.reloadResources()
                             workspace.commandNotice = warnings.isEmpty ? "Skills, templates and native extension resources reloaded" : "Reloaded with warnings"
                             if !warnings.isEmpty { sheet = .command(.information(warnings.joined(separator: "\n\n")), "") }
-                        case .settings: sheet = .connection
+                        case .settings: openSettings()
                         case .compact:
                             workspace.commandWorking = true
                             defer { workspace.commandWorking = false }

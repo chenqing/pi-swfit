@@ -4,6 +4,7 @@ import SwiftUI
 
 /// A plain-text editor with chat keyboard semantics and native input-method handling.
 struct ComposerEditor: NSViewRepresentable {
+    @Environment(\.chatTheme) private var theme
     @Binding var text: String
     @Binding var focused: Bool
     @Binding var height: CGFloat
@@ -63,6 +64,7 @@ struct ComposerEditor: NSViewRepresentable {
         // Replacing an empty NSTextStorage during command recovery can drop its
         // foreground attribute. Keep restored drafts readable in either theme.
         if !editor.hasMarkedText() {
+            editor.applyTextSize(theme.textSize)
             editor.textColor = .labelColor
             editor.typingAttributes[.foregroundColor] = NSColor.labelColor
         }
@@ -126,13 +128,28 @@ final class ComposerScrollView: NSScrollView {
 final class ComposerTextView: NSTextView {
     // Marked text can change before the SwiftUI draft binding. Draw the hint in
     // the same native view as the composition so the two cannot overlap.
+    func applyTextSize(_ value: Double) {
+        guard !hasMarkedText() else { return }
+        let size = CGFloat(ChatTextSize.clamped(value) - 1)
+        guard font?.pointSize != size else { return }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = size + 6
+        paragraph.maximumLineHeight = size + 6
+        font = .systemFont(ofSize: size)
+        defaultParagraphStyle = paragraph
+        typingAttributes[.font] = NSFont.systemFont(ofSize: size)
+        typingAttributes[.paragraphStyle] = paragraph
+        if !string.isEmpty {
+            textStorage?.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: string.utf16.count))
+        }
+    }
     var showsPlaceholder: Bool { string.isEmpty && !hasMarkedText() }
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard showsPlaceholder else { return }
         ("Ask something…" as NSString).draw(at: textContainerOrigin, withAttributes: [
             .font: font ?? NSFont.systemFont(ofSize: 14),
-            .foregroundColor: NSColor.tertiaryLabelColor
+            .foregroundColor: NSColor.labelColor.withAlphaComponent(0.6)
         ])
     }
     override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
@@ -203,6 +220,14 @@ final class ComposerTextView: NSTextView {
     override func keyDown(with event: NSEvent) {
         if !hasMarkedText(), event.modifierFlags.intersection([.shift, .option, .control, .command]).isEmpty,
            commandKey?(event.keyCode) == true { return }
+        // Outside command completion, Tab follows the native key-view loop.
+        // Option-Tab remains available for inserting a literal tab; IMEs keep their keys.
+        if event.keyCode == 48, !hasMarkedText(),
+           event.modifierFlags.intersection([.option, .control, .command]).isEmpty {
+            if event.modifierFlags.contains(.shift) { window?.selectPreviousKeyView(nil) }
+            else { window?.selectNextKeyView(nil) }
+            return
+        }
         // Let AppKit consume Return to confirm Chinese/Japanese composition first.
         if (event.keyCode == 36 || event.keyCode == 76), !hasMarkedText() {
             if event.modifierFlags.intersection([.shift, .option, .control]).isEmpty {

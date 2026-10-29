@@ -45,19 +45,22 @@ struct ConversationSidebar: View {
                         .background(.primary.opacity(0.06), in: Circle())
                     Text("New conversation")
                     Spacer()
-                    Text("⌘N").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Text("⌘N").font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 10)
                     .contentShape(Rectangle())
             }.buttonStyle(SidebarButtonStyle()).disabled(locked)
                 .padding(.top, 8)
             HStack(spacing: 8) {
-                ChatIcon(.search).frame(width: 18).foregroundStyle(.secondary)
+                ChatIcon(.search).frame(width: 18).foregroundStyle(ChatPalette.secondaryText)
                 TextField("Search conversations", text: $query).textFieldStyle(.plain)
                     .accessibilityLabel("Search conversations").focused($searchFocused)
-                    .onExitCommand { query = ""; workspace.searchTerm = ""; searchFocused = false }
+                    .onSubmit {
+                        if let first = filtered.first, !locked { Task { await open(first) } }
+                    }
+                    .onExitCommand { query = ""; workspace.searchTerm = ""; searchFocused = false; workspace.composerFocus += 1 }
                 if !query.isEmpty {
                     Button { query = ""; workspace.searchTerm = "" } label: { ChatIcon(.close, size: 10).frame(width: 20, height: 20) }
-                        .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Clear search")
+                        .buttonStyle(.plain).foregroundStyle(ChatPalette.secondaryText).accessibilityLabel("Clear search")
                 }
             }.font(.system(size: 12)).padding(.horizontal, 10).frame(height: 32)
                 .background(.primary.opacity(searchFocused ? 0.045 : 0.025), in: RoundedRectangle(cornerRadius: 7))
@@ -72,7 +75,7 @@ struct ConversationSidebar: View {
                     Button(showsArchived ? "Show conversations" : "Show archived conversations") { showsArchived.toggle() }
                 } label: { ChatIcon(.more, size: 13).frame(width: 24, height: 24) }
                     .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("Conversation list options")
-            }.font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            }.font(.system(size: 11, weight: .medium)).foregroundStyle(ChatPalette.secondaryText)
                 .padding(.leading, 12).padding(.trailing, 4).padding(.top, 16).padding(.bottom, 4)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
@@ -90,12 +93,12 @@ struct ConversationSidebar: View {
                             }
                         } label: {
                             HStack(alignment: .top, spacing: 6) {
-                                Image(systemName: "square.and.pencil").font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 2)
+                                Image(systemName: "square.and.pencil").font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).padding(.top, 2)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled draft" : draft.text)
                                         .lineLimit(1)
                                     Text(ConversationSearch.excerpt(in: draft.text, matching: query) ?? "Draft · Not sent")
-                                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+                                        .font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).lineLimit(2)
                                 }
                                 Spacer(minLength: 0)
                             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 8).contentShape(Rectangle())
@@ -121,7 +124,7 @@ struct ConversationSidebar: View {
                         ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(16)
                     } else if filtered.isEmpty && filteredDrafts.isEmpty {
                         Text(query.isEmpty ? (showsArchived ? "No archived conversations" : workspace.cwd == nil ? "Connect a model and workspace to save conversations." : "Conversations appear here after your first message.") : "No matching conversations")
-                            .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(3).padding(12)
+                            .font(.system(size: 12)).foregroundStyle(ChatPalette.secondaryText).lineSpacing(3).padding(12)
                     }
                     if let loadError {
                         Text(loadError).font(.caption).foregroundStyle(.red).padding(12)
@@ -132,13 +135,13 @@ struct ConversationSidebar: View {
             Spacer(minLength: 12)
             Button(action: configure) {
                 HStack(spacing: 10) {
-                    ChatIcon(.settings).frame(width: 18).foregroundStyle(.secondary)
+                    ChatIcon(.settings).frame(width: 18).foregroundStyle(ChatPalette.secondaryText)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(workspace.profile?.name ?? "Model & workspace").lineLimit(1)
-                        Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        Text(workspace.profile?.modelID ?? "Offline demo").font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).lineLimit(1).truncationMode(.middle)
                     }
                     Spacer(minLength: 0)
-                    ChatIcon(.down, size: 10).foregroundStyle(.tertiary)
+                    ChatIcon(.down, size: 10).foregroundStyle(ChatPalette.secondaryText)
                 }.padding(12).contentShape(Rectangle())
             }.buttonStyle(SidebarButtonStyle()).disabled(locked).help("Model & workspace")
                 .accessibilityLabel("Model & workspace").padding(.bottom, 8)
@@ -147,6 +150,13 @@ struct ConversationSidebar: View {
                 ConversationTitleSheet(title: target.title) { try workspace.rename(target.info, title: $0) }
             }
             .background(PiBrand.sidebar)
+            .onChange(of: workspace.searchFocus, initial: true) {
+                if workspace.searchFocus > 0 {
+                    // The menu can insert a previously hidden sidebar. Wait until
+                    // its native text field has joined the window's focus chain.
+                    DispatchQueue.main.async { searchFocused = true }
+                }
+            }
             .onChange(of: workspace.newConversationRequest) { query = "" }
             .task(id: refreshKey) { await reload() }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh = UUID() }
@@ -195,20 +205,23 @@ private struct ConversationRow<Actions: View>: View {
     let open: () -> Void
     @ViewBuilder let actions: () -> Actions
     @State private var hovered = false
+    @FocusState private var rowFocused: Bool
     var body: some View {
         HStack(spacing: 0) {
             Button(action: open) {
                 HStack(spacing: 6) {
-                    if pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary) }
+                    if pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(ChatPalette.secondaryText) }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title).lineLimit(1)
-                        if let snippet { Text(snippet).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2) }
+                        if let snippet { Text(snippet).font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).lineLimit(2) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.padding(.leading, 12).padding(.vertical, 8).contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+            }.buttonStyle(.plain).focused($rowFocused)
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(rowFocused ? PiBrand.accent : .clear, lineWidth: 2))
+                .accessibilityAddTraits(selected ? .isSelected : [])
             Menu(content: actions) { ChatIcon(.more, size: 13).frame(width: 26, height: 28) }
                 .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .opacity(hovered || selected ? 1 : 0.35).accessibilityLabel("Options for \(title)")
+                .opacity(hovered || selected ? 1 : 0.75).accessibilityLabel("Options for \(title)")
         }.padding(.trailing, 4).disabled(locked)
             .background(.primary.opacity(selected ? 0.065 : hovered ? 0.035 : 0), in: RoundedRectangle(cornerRadius: 7))
             .onHover { hovered = $0 }.contextMenu(menuItems: actions)
@@ -218,10 +231,12 @@ private struct SidebarButtonStyle: ButtonStyle {
     var selected = false
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.isFocused) private var focused
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(.primary.opacity(configuration.isPressed ? 0.10 : selected ? 0.065 : hovered && enabled ? 0.035 : 0),
                         in: RoundedRectangle(cornerRadius: 7))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(focused ? PiBrand.accent : .clear, lineWidth: 2))
             .opacity(enabled ? 1 : 0.45)
             .onHover { hovered = $0 }
     }

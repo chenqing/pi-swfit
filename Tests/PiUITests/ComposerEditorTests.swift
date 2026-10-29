@@ -6,6 +6,56 @@ import SwiftUI
 
 @MainActor
 struct ComposerEditorTests {
+    @Test func textSizePreservesDraftSelectionUndoAndMarkedText() throws {
+        let editor = ComposerTextView(); editor.allowsUndo = true
+        editor.synchronize("Original 中文", identity: "first")
+        editor.synchronize("Edited 中文", identity: "first")
+        editor.setSelectedRange(NSRange(location: 2, length: 3))
+        editor.applyTextSize(22)
+        #expect(editor.font?.pointSize == 21)
+        #expect(editor.string == "Edited 中文")
+        #expect(editor.selectedRange() == NSRange(location: 2, length: 3))
+        editor.undo(nil)
+        #expect(editor.string == "Original 中文")
+        editor.applyTextSize(22)
+        editor.setSelectedRange(NSRange(location: editor.string.utf16.count, length: 0))
+        editor.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        let marked = editor.markedRange()
+        editor.applyTextSize(13)
+        #expect(editor.font?.pointSize == 21)
+        #expect(editor.markedRange() == marked)
+        editor.insertText("你", replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.applyTextSize(13)
+        #expect(editor.font?.pointSize == 12)
+        #expect(editor.string == "Original 中文你")
+    }
+
+    @Test func tabMovesFocusButCommandCompletionKeepsIt() throws {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: .titled, backing: .buffered, defer: false)
+        let editor = ComposerTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 80))
+        let next = NSTextView(frame: NSRect(x: 0, y: 100, width: 200, height: 80))
+        window.contentView?.addSubview(editor); window.contentView?.addSubview(next)
+        editor.nextKeyView = next; next.nextKeyView = editor
+        let tab = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: "\t", charactersIgnoringModifiers: "\t", isARepeat: false, keyCode: 48))
+        window.makeFirstResponder(editor)
+        editor.keyDown(with: tab)
+        #expect(window.firstResponder === next)
+        #expect(editor.string.isEmpty)
+        window.makeFirstResponder(editor)
+        editor.commandKey = { $0 == 48 }
+        editor.keyDown(with: tab)
+        #expect(window.firstResponder === editor)
+        #expect(editor.string.isEmpty)
+    }
+
+    @Test func invalidTextSizesHaveSafeReadableBounds() {
+        #expect(ChatTextSize.clamped(.nan) == 15)
+        #expect(ChatTextSize.clamped(.infinity) == 15)
+        #expect(ChatTextSize.clamped(-1) == 13)
+        #expect(ChatTextSize.clamped(1000) == 22)
+        #expect(ChatTextSize.clamped(18) == 18)
+    }
+
     @Test func placeholderTracksCompositionBeforeDraftBindingChanges() {
         let editor = ComposerTextView()
         editor.synchronize("", identity: "first")

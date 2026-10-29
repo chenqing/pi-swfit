@@ -41,7 +41,7 @@ struct SessionDetails: View {
                     Text("Session details").font(.system(size: 13, weight: .medium))
                     Spacer()
                     Button(action: close) { ChatIcon(.close, size: 11).frame(width: 28, height: 28) }
-                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Close session details").accessibilityLabel("Close session details")
+                        .buttonStyle(.plain).foregroundStyle(ChatPalette.secondaryText).help("Close session details").accessibilityLabel("Close session details")
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
             }
             ScrollView {
@@ -72,14 +72,14 @@ struct SessionDetails: View {
                     }
                     card("Tools", summary: calls.isEmpty ? "\(session.availableToolNames.count) available" : "\(calls.count) \(calls.count == 1 ? "call" : "calls")", expanded: $expansion.tools) {
                         if !session.availableToolNames.isEmpty {
-                            Text(session.availableToolNames.joined(separator: " · ")).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
+                            Text(session.availableToolNames.joined(separator: " · ")).font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).textSelection(.enabled)
                         }
                         if calls.isEmpty { note("No tools called yet.") }
                         else {
                             ForEach(showsAllTools ? calls : Array(calls.suffix(5))) { tool in toolRow(tool) }
                             if calls.count > 5 {
                                 Button(showsAllTools ? "Show recent calls" : "Show all \(calls.count) calls") { showsAllTools.toggle() }
-                                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                                    .buttonStyle(.plain).foregroundStyle(ChatPalette.secondaryText)
                             }
                         }
                     }
@@ -89,7 +89,7 @@ struct SessionDetails: View {
                             ForEach(changes) { change in
                                 Button { openChange(change) } label: {
                                     HStack(spacing: 8) {
-                                        Image(systemName: "doc.text").foregroundStyle(.secondary)
+                                        Image(systemName: "doc.text").foregroundStyle(ChatPalette.secondaryText)
                                         Text(displayPath(change.path)).lineLimit(1).truncationMode(.middle)
                                         Spacer(minLength: 4)
                                         Text("+\(change.added)").foregroundStyle(.green)
@@ -116,17 +116,17 @@ struct SessionDetails: View {
                     Text(tool.summary).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
                     ChatIcon(.right, size: 9).rotationEffect(.degrees(expansion.rawTools.contains(tool.id) ? 90 : 0))
-                }.foregroundStyle(.secondary).padding(.vertical, 5).contentShape(Rectangle())
+                }.foregroundStyle(ChatPalette.secondaryText).padding(.vertical, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help("Show raw tool details")
                 .accessibilityLabel("\(tool.summary), \(tool.state.rawValue)")
                 .accessibilityValue(expansion.rawTools.contains(tool.id) ? "Expanded" : "Collapsed")
             if expansion.rawTools.contains(tool.id) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Arguments").foregroundStyle(.secondary)
+                        Text("Arguments").foregroundStyle(ChatPalette.secondaryText)
                         Text(tool.arguments).font(.system(size: 11, design: .monospaced))
                         if !tool.output.isEmpty {
-                            Text("Result").foregroundStyle(.secondary)
+                            Text("Result").foregroundStyle(ChatPalette.secondaryText)
                             Text(tool.output).font(.system(size: 11, design: .monospaced))
                         }
                     }.textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(8)
@@ -140,22 +140,22 @@ struct SessionDetails: View {
     }
     private func row(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).foregroundStyle(.secondary)
+            Text(title).foregroundStyle(ChatPalette.secondaryText)
             Spacer(minLength: 8)
             Text(value).monospacedDigit().multilineTextAlignment(.trailing).textSelection(.enabled)
         }
     }
     private func note(_ text: String) -> some View {
-        Text(text).font(.system(size: 11)).foregroundStyle(.secondary).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+        Text(text).font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
     }
     private func card<Content: View>(_ title: String, summary: String? = nil, expanded: Binding<Bool>, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { expanded.wrappedValue.toggle() } label: {
                 HStack(spacing: 6) {
                     Text(title).font(.system(size: 13, weight: .medium))
-                    ChatIcon(.right, size: 9).rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0)).foregroundStyle(.secondary)
+                    ChatIcon(.right, size: 9).rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0)).foregroundStyle(ChatPalette.secondaryText)
                     Spacer(minLength: 4)
-                    if let summary { Text(summary).font(.system(size: 11)).foregroundStyle(.secondary).monospacedDigit() }
+                    if let summary { Text(summary).font(.system(size: 11)).foregroundStyle(ChatPalette.secondaryText).monospacedDigit() }
                 }.padding(12).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(title).accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
             if expanded.wrappedValue {
