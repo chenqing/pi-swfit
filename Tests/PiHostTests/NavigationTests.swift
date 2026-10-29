@@ -135,6 +135,45 @@ struct NavigationTests {
         #expect(host.manager.getEntry(try #require(old)) != nil)
         await host.shutdown()
     }
+    @Test @MainActor func desktopCompactionExplainsNoOpButPreservesRealFailures() async throws {
+        let f = NavigationFixture(); defer { f.cleanup() }
+        try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
+        let store = ConnectionStore(paths: f.paths, credentials: MemoryCredentials())
+        let profile = ConnectionProfile(name: "Fixture", modelID: "fixture", api: "openai-completions", endpoint: "https://example.invalid")
+        let chat = try await ChatSession.openCoding(cwd: f.root.path, profile: profile, store: store, streamFn: f.stream)
+        await chat.send("short conversation")
+        let file = URL(fileURLWithPath: try #require(chat.sessionFile))
+        let original = try Data(contentsOf: file)
+        let calls = f.levels.current.count
+        chat.draft = "/compact"
+        var notice = ""
+        try await chat.consumeCommand("/compact") { notice = try await chat.compact() }
+        #expect(notice.hasPrefix("No compaction needed."))
+        #expect(notice.contains(20_000.formatted()))
+        #expect(chat.state == .idle)
+        #expect(chat.error == nil && !chat.isRunning && chat.draft.isEmpty)
+        #expect(f.levels.current.count == calls)
+        #expect(try Data(contentsOf: file) == original)
+        // Enough history now requires a real summary; provider errors must still fail.
+        await chat.send(String(repeating: "long context ", count: 8_000))
+        let beforeFailure = try Data(contentsOf: file)
+        f.fail.withLock { $0 = true }
+        chat.draft = "/compact keep decisions"
+        await #expect(throws: (any Error).self) {
+            try await chat.consumeCommand(chat.draft) { try await chat.compact() }
+        }
+        #expect(chat.state == .failed)
+        #expect(chat.draft == "/compact keep decisions")
+        #expect(try Data(contentsOf: file) == beforeFailure)
+        f.fail.withLock { $0 = false }
+        #expect(try await chat.compact() == "Context compacted. You can continue chatting.")
+        let compacted = try Data(contentsOf: file)
+        #expect(try await chat.compact() == "Context is already compacted. You can continue chatting.")
+        #expect(chat.state == .idle)
+        #expect(try Data(contentsOf: file) == compacted)
+        await chat.shutdown()
+    }
+
     @Test @MainActor func desktopForkRestoresDraftAndRejectsOverwrite() async throws {
         let f = NavigationFixture(); defer { f.cleanup() }
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)

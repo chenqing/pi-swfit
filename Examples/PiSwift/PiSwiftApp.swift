@@ -213,7 +213,16 @@ struct AppView: View {
                             workspace.commandNotice = warnings.isEmpty ? "Skills, templates and native extension resources reloaded" : "Reloaded with warnings"
                             if !warnings.isEmpty { sheet = .command(.information(warnings.joined(separator: "\n\n")), "") }
                         case .settings: sheet = .connection
-                        case .compact: try await target.compact(argument); workspace.remember(); workspace.commandNotice = "Context compacted"
+                        case .compact:
+                            workspace.error = nil
+                            workspace.commandNotice = "Compacting context…"
+                            do {
+                                workspace.commandNotice = try await target.compact(argument)
+                                workspace.remember()
+                            } catch {
+                                workspace.commandNotice = nil
+                                throw error
+                            }
                         case .session: sheet = .command(.information(try await target.sessionInformation()), "")
                         case .copy:
                             guard let text = target.messages.last(where: { $0.role == .assistant && !$0.text.isEmpty })?.text else { throw PiError("No assistant response to copy") }

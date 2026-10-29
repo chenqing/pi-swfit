@@ -252,14 +252,27 @@ public final class ChatSession {
         return SlashCommand.describe(await host.session.getSessionStats())
     }
 
-    public func compact(_ instructions: String = "") async throws {
+    @discardableResult
+    public func compact(_ instructions: String = "") async throws -> String {
         guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Open an idle workspace before compacting") }
         active = true; state = .running; error = nil
         defer { active = false }
         do {
             _ = try await host.session.compact(instructions.isEmpty ? nil : instructions)
             state = .completed
+            return "Context compacted. You can continue chatting."
         } catch {
+            // The upstream runtime reports this no-op as an error. Present it as
+            // information without changing the runtime or its retention policy.
+            if state != .stopping, let failure = error as? PiError,
+               failure.message == "Nothing to compact (session too small)" || failure.message == "Already compacted" {
+                let settings = try host.session.settingsManager.getCompactionSettings(await host.session.model)
+                state = .idle
+                if host.manager.getBranch().last?.type == "compaction" {
+                    return "Context is already compacted. You can continue chatting."
+                }
+                return "No compaction needed. Pi keeps about \(settings.keepRecentTokens.formatted()) tokens of recent messages; there is no earlier context to summarize. You can continue chatting."
+            }
             state = state == .stopping ? .cancelled : .failed
             throw error
         }
