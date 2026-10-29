@@ -14,13 +14,15 @@ public struct ConversationView<MessageContent: View>: View {
     private let searchTerm: String
     private let searchRequest: UUID?
     private let closeSearch: () -> Void
+    private let trailingAccessoryWidth: CGFloat
     @State private var localFocus = 0
     @State private var matchIndex = 0
     @Environment(\.chatTheme) private var theme
     @State private var followsBottom = true
     @State private var distance: CGFloat = 0
-    public init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil, composerGeneration: Int = 0, focusRequest: Int = 0, searchTerm: String = "", searchRequest: UUID? = nil, closeSearch: @escaping () -> Void = {}, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
+    public init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil, composerGeneration: Int = 0, focusRequest: Int = 0, searchTerm: String = "", searchRequest: UUID? = nil, closeSearch: @escaping () -> Void = {}, trailingAccessoryWidth: CGFloat = 0, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
         self.composerGeneration = composerGeneration; self.focusRequest = focusRequest
+        self.trailingAccessoryWidth = max(0, trailingAccessoryWidth)
         self.searchTerm = searchTerm; self.searchRequest = searchRequest; self.closeSearch = closeSearch
         self.session = session; self.brandIcon = brandIcon; self.composerContext = composerContext; renderMessage = message
     }
@@ -43,7 +45,7 @@ public struct ConversationView<MessageContent: View>: View {
                                 Button { moveMatch(1, proxy: proxy) } label: { Image(systemName: "chevron.down") }
                                     .accessibilityLabel("Next match").disabled(matches.isEmpty)
                                 Button(action: closeSearch) { Image(systemName: "xmark") }.accessibilityLabel("Close search results")
-                            }.font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8)
+                            }.font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8).padding(.trailing, trailingAccessoryWidth)
                         }
                         ScrollView {
                             VStack(alignment: .leading, spacing: 0) {
@@ -62,7 +64,7 @@ public struct ConversationView<MessageContent: View>: View {
                                     }.padding(.top, 12)
                                 }
                                 Color.clear.frame(height: 1).id("bottom")
-                            }.padding(.horizontal, geometry.size.width < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+                            }.padding(.horizontal, geometry.size.width - trailingAccessoryWidth < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity).padding(.trailing, trailingAccessoryWidth)
                                 .background(ScrollMetrics { remaining, movedUp in
                                     distance = remaining
                                     if movedUp { followsBottom = false }
@@ -82,6 +84,7 @@ public struct ConversationView<MessageContent: View>: View {
                                             .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
                                     }.buttonStyle(.plain).foregroundStyle(.secondary)
                                         .help("Back to latest").accessibilityLabel("Back to latest").padding(.bottom, 8)
+                                        .frame(maxWidth: .infinity).padding(.trailing, trailingAccessoryWidth)
                                 }
                             }
                     }.task(id: searchRequest) {
@@ -116,7 +119,7 @@ public struct ConversationView<MessageContent: View>: View {
                     Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
                              identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
                              send: { Task { await session.send() } }, stop: { session.stop() })
-                }.padding(.horizontal, geometry.size.width < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+                }.padding(.horizontal, geometry.size.width - trailingAccessoryWidth < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity).padding(.trailing, trailingAccessoryWidth)
             }
         }
     }
@@ -178,6 +181,8 @@ private struct ScrollMetrics: NSViewRepresentable {
     final class ObserverView: NSView {
         var changed: ((CGFloat, Bool) -> Void)?
         private weak var scroll: NSScrollView?
+        private var originalScroller: NSScroller?
+        private weak var styledScroller: ConversationScroller?
         private var tokens: [NSObjectProtocol] = []
         private var lastTop: CGFloat?
         private var lastRemaining: CGFloat?
@@ -189,6 +194,11 @@ private struct ScrollMetrics: NSViewRepresentable {
         func connect() {
             guard scroll == nil, let enclosing = enclosingScrollView, let document = enclosing.documentView else { return }
             scroll = enclosing
+            originalScroller = enclosing.verticalScroller
+            let scroller = ConversationScroller(frame: enclosing.verticalScroller?.frame ?? .zero)
+            scroller.scrollerStyle = enclosing.scrollerStyle
+            enclosing.verticalScroller = scroller
+            styledScroller = scroller
             enclosing.contentView.postsBoundsChangedNotifications = true
             document.postsFrameChangedNotifications = true
             for (name, object) in [(NSView.boundsDidChangeNotification, enclosing.contentView), (NSView.frameDidChangeNotification, document)] {
@@ -209,8 +219,29 @@ private struct ScrollMetrics: NSViewRepresentable {
         }
         func disconnect() {
             tokens.forEach(NotificationCenter.default.removeObserver)
-            tokens.removeAll(); scroll = nil; lastTop = nil; lastRemaining = nil
+            tokens.removeAll()
+            if let scroll, let styledScroller, scroll.verticalScroller === styledScroller {
+                scroll.verticalScroller = originalScroller
+            }
+            originalScroller = nil; styledScroller = nil; scroll = nil; lastTop = nil; lastRemaining = nil
         }
     }
 }
+
+/// Keep AppKit's tracking, hit target, accessibility and auto-hide behavior; only soften the ink.
+private final class ConversationScroller: NSScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool { true }
+    override func drawKnob() {
+        guard knobProportion < 1 else { return }
+        let native = rect(for: .knob)
+        guard native.height > 0 else { return }
+        let width: CGFloat = 4
+        let knob = NSRect(x: native.midX - width / 2, y: native.minY, width: width, height: native.height)
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        NSColor.labelColor.withAlphaComponent(contrast ? 0.55 : (hitPart == .knob ? 0.32 : 0.18)).setFill()
+        NSBezierPath(roundedRect: knob, xRadius: width / 2, yRadius: width / 2).fill()
+    }
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
+}
+
 #endif

@@ -78,15 +78,18 @@ struct AppView: View {
                                                  do { try session.selectPermissionMode(mode) }
                                                  catch { workspace.error = String(describing: error) }
                                              }, submitCommand: handleCommand, commandNotice: workspace.commandNotice, commands: session.commands), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
-                                         searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" }) { message in
+                                         searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" },
+                                         trailingAccessoryWidth: showsDetails && detailsFit ? 302 : 0) { message in
                                                  MessageView(message: message, openChange: openChange)
                                              }
                             .frame(maxWidth: .infinity)
-                        if showsDetails && detailsFit {
-                            SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion,
-                                           openChange: openChange, close: { showsDetails = false })
-                                .id(ObjectIdentifier(session)).frame(width: 288)
-                        }
+                            .overlay(alignment: .trailing) {
+                                if showsDetails && detailsFit {
+                                    SessionDetails(workspace: workspace, session: session, expansion: detailsExpansion,
+                                                   openChange: openChange, close: { showsDetails = false })
+                                        .id(ObjectIdentifier(session)).frame(width: 288).padding(.trailing, 14)
+                                }
+                            }
                     }
                 } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             }.background { windowBackground.ignoresSafeArea(.container, edges: .top) }
