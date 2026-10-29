@@ -1,5 +1,6 @@
 import SwiftUI
 import PiChat
+import PiHost
 
 /// Host-owned controls; the composer does not choose models or alter tool permissions.
 public struct ComposerContext {
@@ -18,14 +19,16 @@ public struct ComposerContext {
     public var configure: () -> Void
     public var addTextFile: () -> Void
     public var modelChoices: [ModelChoice]
+    public var commandNotice: String?
+    public var submitCommand: ((String) -> Void)?
     public var permissionMode: ChatPermissionMode?
     public var canSelectPermissionMode: Bool
     public var selectPermissionMode: ((ChatPermissionMode) -> Void)?
     public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = [],
                 permissionMode: ChatPermissionMode? = nil, canSelectPermissionMode: Bool = true,
-                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil) {
+                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil, submitCommand: ((String) -> Void)? = nil, commandNotice: String? = nil) {
         self.model = model; self.policy = policy; self.configure = configure; self.addTextFile = addTextFile
-        self.modelChoices = modelChoices
+        self.modelChoices = modelChoices; self.submitCommand = submitCommand; self.commandNotice = commandNotice
         self.permissionMode = permissionMode; self.canSelectPermissionMode = canSelectPermissionMode
         self.selectPermissionMode = selectPermissionMode
     }
@@ -43,6 +46,12 @@ public struct Composer: View {
     @State private var editorHeight: CGFloat = 28
     @State private var addingContent = false
     @State private var choosingPermissions = false
+    @State private var commandIndex = 0
+    @State private var dismissedCommands = false
+    private var commands: [SlashCommand] {
+        guard context?.submitCommand != nil, !isRunning, !dismissedCommands else { return [] }
+        return SlashCommand.suggestions(text)
+    }
     @FocusState private var fallbackFocused: Bool
     public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, identity: String = "", focusRequest: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void) {
         self.identity = identity; self.focusRequest = focusRequest
@@ -51,6 +60,11 @@ public struct Composer: View {
     private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !commands.isEmpty {
+                SlashCommandMenu(commands: commands, selected: commandIndex) { command in
+                    complete(command)
+                }
+            }
             HStack(alignment: .bottom, spacing: 8) {
                 if let context {
                     Button { addingContent.toggle() } label: {
@@ -80,7 +94,7 @@ public struct Composer: View {
                         ChatIcon(.send, size: 17).frame(width: 28, height: 28)
                             .foregroundStyle(.primary).contentShape(Rectangle())
                     }.buttonStyle(ComposerControlStyle())
-                        .help("Send message · Return").accessibilityLabel("Send message")
+                        .help(text.hasPrefix("/") ? "Run command · Return" : "Send message · Return").accessibilityLabel(text.hasPrefix("/") ? "Run command" : "Send message")
                 }
             }.padding(.horizontal, 8).padding(.vertical, 8)
                 .background {
@@ -91,6 +105,9 @@ public struct Composer: View {
                     .strokeBorder(Color.primary.opacity(focused ? 0.20 : 0.10), lineWidth: 1))
                 .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
                 .animation(.easeOut(duration: 0.15), value: focused)
+            if let notice = context?.commandNotice {
+                Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
+            }
             HStack(spacing: 12) {
                 if let context, let mode = context.permissionMode, let select = context.selectPermissionMode {
                     Button { choosingPermissions.toggle() } label: {
@@ -136,16 +153,41 @@ public struct Composer: View {
                 }
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.horizontal, 12).frame(minHeight: 20)
         }
+        .onChange(of: text) { commandIndex = 0; dismissedCommands = false }
+        .onChange(of: identity) { commandIndex = 0; dismissedCommands = false }
+    }
+    private func complete(_ command: SlashCommand) {
+        text = "/" + command.rawValue + (command.argumentHint == nil ? "" : " ")
+        dismissedCommands = true
+        focused = true; fallbackFocused = true
+    }
+    private func commandKey(_ key: UInt16) -> Bool {
+        guard !commands.isEmpty else { return false }
+        switch key {
+        case 125: commandIndex = (commandIndex + 1) % commands.count
+        case 126: commandIndex = (commandIndex + commands.count - 1) % commands.count
+        case 53: dismissedCommands = true
+        case 48: complete(commands[min(commandIndex, commands.count - 1)])
+        case 36, 76:
+            let choice = commands[min(commandIndex, commands.count - 1)]
+            if text == "/" + choice.rawValue { submit() }
+            else { complete(choice) }
+        default: return false
+        }
+        return true
     }
     private func submit() {
         guard canSend, !isRunning, !addingContent, !choosingPermissions else { return }
-        send()
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/"), let command = context?.submitCommand {
+            dismissedCommands = true
+            command(text)
+        } else { send() }
         focused = true
         fallbackFocused = true
     }
     @ViewBuilder private var editor: some View {
         #if os(macOS)
-        ComposerEditor(text: $text, focused: $focused, height: $editorHeight, identity: identity, focusRequest: focusRequest, submit: submit)
+        ComposerEditor(text: $text, focused: $focused, height: $editorHeight, identity: identity, focusRequest: focusRequest, commandKey: commandKey, submit: submit)
             .frame(height: editorHeight)
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {

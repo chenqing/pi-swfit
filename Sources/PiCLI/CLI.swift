@@ -38,7 +38,7 @@ public enum PFCLI {
       --demo                   Offline fixture; no key, network or tool execution
 
     Set the provider's API key environment variable (e.g. OPENAI_API_KEY).
-    Without -p, a terminal opens a line-oriented REPL. /exit quits, /compact summarizes.
+    Without -p, a terminal opens a line-oriented REPL. /help lists commands; /quit exits.
     Piped stdin is prepended to the first prompt. No full TUI, RPC or npm extensions yet.
     Tools can access local files and run commands with your user's permissions.
     Use --no-tools for chat-only use. See Docs/CLI.md for the compatibility matrix.
@@ -126,27 +126,30 @@ public enum PFCLI {
             systemPrompt: args.systemPrompt ?? codingSystemPrompt(cwd: cwd),
             model: model, thinkingLevel: args.thinking, tools: tools), streamFn: stream, getApiKey: { _ in savedKey })
         let host = try await CodingSessionHost.open(cwd: cwd, paths: paths, manager: manager, options: options, projectTrusted: args.trustProject, connectionID: profile?.id)
-        let session = host.session
+        let commands = CLICommands(host: host, connections: connections, demo: args.demo, printLine: { diagnostic($0 + "\n") })
+        let activeHost = commands.activeHost
         for warning in host.diagnostics { diagnostic("pf: \(warning.message)\n") }
         let runFailed = Locked(false)
-        let subscription = session.subscribe { event in
+        let observe: @Sendable (AgentSessionEvent) -> Void = { event in
             if case .messageEnd(.assistant(let message)) = event, message.stopReason == .error { runFailed.withLock { $0 = true } }
             if args.mode == "json", let value = jsonEvent(event) { output(value.serialized() + "\n") }
             else if interactive, case .messageUpdate(_, .textDelta(_, let delta, _)) = event { output(delta) }
             else if interactive, case .toolExecutionStart(_, let name, _) = event { diagnostic("\n[\(name)]\n") }
         }
+        var subscription = host.session.subscribe(observe)
         defer { subscription() }
         signal(SIGINT, SIG_IGN); signal(SIGTERM, SIG_IGN)
         let signals = [SIGINT, SIGTERM].map { number -> DispatchSourceSignal in
             let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
-            source.setEventHandler { Task { await session.abort(); await host.shutdown(); exit(128 + number) } }
+            source.setEventHandler { Task { let current = activeHost.current; await current.session.abort(); await current.shutdown(); exit(128 + number) } }
             source.resume(); return source
         }
         defer { signals.forEach { $0.cancel() }; signal(SIGINT, SIG_DFL); signal(SIGTERM, SIG_DFL) }
         if args.mode == "json", let header = manager.getHeader() { output(header.json.serialized() + "\n") }
-        if interactive { diagnostic("pf \(version) · \(model.id) · /exit to quit\n") }
+        if interactive { diagnostic("pf \(version) · \(model.id) · /help for commands\n") }
         func prompt(_ text: String) async throws {
             runFailed.withLock { $0 = false }
+            let session = activeHost.current.session
             try await session.prompt(text)
             let last = await session.messages.reversed().compactMap { if case .assistant(let m) = $0 { return m }; return nil }.first
             runFailed.withLock { $0 = last?.stopReason == .error }
@@ -162,14 +165,20 @@ public enum PFCLI {
                 while true {
                     diagnostic("\npf › ")
                     guard let line = readLine() else { break }
-                    if line == "/exit" || line == "/quit" { break }
-                    if line == "/compact" { _ = try await session.compact(); diagnostic("Session compacted.\n"); continue }
                     if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-                    try await prompt(line)
+                    do {
+                        if let invocation = try SlashCommand.parse(line) {
+                            let previous = activeHost.current
+                            guard try await commands.execute(invocation) else { break }
+                            if activeHost.current !== previous {
+                                subscription(); subscription = activeHost.current.session.subscribe(observe)
+                            }
+                        } else { try await prompt(line) }
+                    } catch { diagnostic("pf: \(error)\n") }
                 }
             }
-        } catch { await host.shutdown(); throw error }
-        await host.shutdown()
+        } catch { await activeHost.current.shutdown(); throw error }
+        await activeHost.current.shutdown()
         return runFailed.current ? 1 : 0
     }
     #endif

@@ -169,6 +169,37 @@ public final class ChatSession {
         modelName = profile.modelID
     }
 
+    /// Consume a host command without inserting a model message. Restore failed input
+    /// without replacing text the user prepared while an async command was running.
+    public func consumeCommand(_ input: String, action: () async throws -> Void) async throws {
+        guard !isRunning, !isChangingConnection, draft == input else { throw PiError("The draft changed or the conversation is busy") }
+        draft = ""
+        do { try await action() }
+        catch {
+            if draft.isEmpty { draft = input }
+            else if draft != input { draft += "\n\n" + input }
+            throw error
+        }
+    }
+
+    public func sessionInformation() async throws -> String {
+        guard let host = codingHost else { throw PiError("Open a workspace to inspect a saved session") }
+        return SlashCommand.describe(await host.session.getSessionStats())
+    }
+
+    public func compact(_ instructions: String = "") async throws {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Open an idle workspace before compacting") }
+        active = true; state = .running; error = nil
+        defer { active = false }
+        do {
+            _ = try await host.session.compact(instructions.isEmpty ? nil : instructions)
+            state = .completed
+        } catch {
+            state = state == .stopping ? .cancelled : .failed
+            throw error
+        }
+    }
+
     public func rename(_ title: String) throws {
         guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Wait for the conversation to be idle") }
         let title = try ConversationLibrary.validTitle(title)

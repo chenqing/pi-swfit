@@ -47,6 +47,28 @@ struct ChatSessionTests {
         throw PiError("Timed out waiting for chat state")
     }
 
+    @Test func localCommandFailurePreservesDraftWithoutCreatingMessages() async throws {
+        let chat = try ChatSession(options: options())
+        chat.draft = "/compact keep decisions"
+        await #expect(throws: (any Error).self) {
+            try await chat.consumeCommand(chat.draft) { try await chat.compact() }
+        }
+        #expect(chat.draft == "/compact keep decisions")
+        #expect(chat.messages.isEmpty)
+        #expect(!chat.isRunning)
+        await #expect(throws: (any Error).self) {
+            try await chat.consumeCommand(chat.draft) {
+                chat.draft = "Next draft"
+                throw PiError("fixture failure")
+            }
+        }
+        #expect(chat.draft == "Next draft\n\n/compact keep decisions")
+        await #expect(throws: (any Error).self) { try await chat.consumeCommand("stale") {} }
+        #expect(chat.messages.isEmpty)
+        try await chat.consumeCommand(chat.draft) {}
+        #expect(chat.draft.isEmpty)
+    }
+
     @Test func toolWaitsForApprovalAndRunsOnce() async throws {
         let calls = Locked(0)
         let session = try ChatSession(options: options(executions: calls))

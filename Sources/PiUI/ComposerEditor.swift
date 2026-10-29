@@ -9,6 +9,7 @@ struct ComposerEditor: NSViewRepresentable {
     @Binding var height: CGFloat
     var identity = ""
     var focusRequest = 0
+    var commandKey: ((UInt16) -> Bool)? = nil
     let submit: () -> Void
 
     func makeNSView(context: Context) -> ComposerScrollView {
@@ -54,6 +55,7 @@ struct ComposerEditor: NSViewRepresentable {
         coordinator.parent = self
         guard let editor = scroll.documentView as? ComposerTextView else { return }
         editor.submit = submit
+        editor.commandKey = commandKey
         editor.focusChanged = { [weak coordinator] value in
             DispatchQueue.main.async { coordinator?.parent.focused = value }
         }
@@ -155,6 +157,7 @@ final class ComposerTextView: NSTextView {
         if item.action == #selector(redo(_:)) { return draftUndoManager.canRedo }
         return super.validateUserInterfaceItem(item)
     }
+    var commandKey: ((UInt16) -> Bool)?
     var submit: (() -> Void)?
     var focusChanged: ((Bool) -> Void)?
     override func becomeFirstResponder() -> Bool {
@@ -168,6 +171,8 @@ final class ComposerTextView: NSTextView {
         return result
     }
     override func keyDown(with event: NSEvent) {
+        if !hasMarkedText(), event.modifierFlags.intersection([.shift, .option, .control, .command]).isEmpty,
+           commandKey?(event.keyCode) == true { return }
         // Let AppKit consume Return to confirm Chinese/Japanese composition first.
         if (event.keyCode == 36 || event.keyCode == 76), !hasMarkedText() {
             if event.modifierFlags.intersection([.shift, .option, .control]).isEmpty {

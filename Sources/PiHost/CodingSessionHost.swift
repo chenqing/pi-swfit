@@ -61,10 +61,25 @@ public final class CodingSessionHost: Sendable {
     }
 
     public func newConversation() async throws -> CodingSessionHost {
-        let manager = try SessionManager.create(cwd, self.manager.getSessionDir())
+        let manager = try self.manager.getSessionFile() == nil ? SessionManager.inMemory(cwd) : SessionManager.create(cwd, self.manager.getSessionDir())
         let current = configuration.current
         return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: current.options,
                                    projectTrusted: projectTrusted, connectionID: current.connectionID)
+    }
+    /// Opens another leased transcript before the caller releases its current host.
+    public func resuming(file: String, profile: ConnectionProfile?, key: String?) async throws -> CodingSessionHost {
+        guard FileManager.default.fileExists(atPath: file) else { throw PiError("Session file does not exist") }
+        let manager = try SessionManager.open(file, self.manager.getSessionDir())
+        guard manager.getHeader().map({ HostPaths.canonicalWorkspace($0.cwd) }) == cwd else { throw PiError("Session belongs to another workspace") }
+        var options = configuration.current.options
+        let connectionID: String?
+        if let profile {
+            var initial = options.initialState ?? AgentInitialState()
+            initial.model = try profile.model(); options.initialState = initial
+            options.getApiKey = { _ in key }; connectionID = profile.id
+        } else { connectionID = configuration.current.connectionID }
+        return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: options,
+                                   projectTrusted: projectTrusted, connectionID: connectionID)
     }
     /// Switches an idle host without reopening its transcript or releasing its file lease.
     public func selectConnection(_ profile: ConnectionProfile, key: String?) async throws {

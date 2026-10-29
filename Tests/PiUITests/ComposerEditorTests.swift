@@ -6,6 +6,25 @@ import SwiftUI
 
 @MainActor
 struct ComposerEditorTests {
+    @Test func commandNavigationDoesNotHijackMarkedTextOrShiftReturn() throws {
+        let editor = ComposerTextView()
+        var keys: [UInt16] = []
+        editor.commandKey = { keys.append($0); return true }
+        func key(_ code: UInt16, flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
+            try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags,
+                                         timestamp: 0, windowNumber: 0, context: nil,
+                                         characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code))
+        }
+        editor.keyDown(with: try key(125))
+        #expect(keys == [125])
+        editor.setMarkedText("中文", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.keyDown(with: try key(125))
+        #expect(keys == [125])
+        editor.unmarkText()
+        editor.keyDown(with: try key(36, flags: .shift))
+        #expect(keys == [125])
+    }
+
     @Test func refreshingFocusedEditorDoesNotStealSearchFocus() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300), styleMask: .titled, backing: .buffered, defer: false)
         let editor = ComposerTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 80))

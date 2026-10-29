@@ -3,6 +3,7 @@ import PiUI
 import PiChat
 import PiAI
 import PiAgent
+import PiHost
 #if os(macOS)
 import AppKit
 
@@ -76,7 +77,7 @@ struct AppView: View {
                                              selectPermissionMode: { mode in
                                                  do { try session.selectPermissionMode(mode) }
                                                  catch { workspace.error = String(describing: error) }
-                                             }), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
+                                             }, submitCommand: handleCommand, commandNotice: workspace.commandNotice), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
                                          searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" }) { message in
                                                  MessageView(message: message, openChange: openChange)
                                              }
@@ -112,12 +113,14 @@ struct AppView: View {
                 .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
                 .onChange(of: detailsFit) { showsCompactDetails = false }
                 .onChange(of: session?.sessionFile) { changeReader.close() }
-                .onChange(of: session?.draft) { workspace.scheduleDraftSave() }
+                .onChange(of: session?.draft) { workspace.scheduleDraftSave(); if session?.draft.isEmpty == false { workspace.commandNotice = nil } }
                 .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
                 .sheet(item: $sheet) { destination in
                     Group {
                         switch destination {
                         case .connection: ConnectionSheet(workspace: workspace)
+                        case .command(let kind, let input):
+                            SlashCommandSheet(workspace: workspace, kind: kind, input: input)
                         case .rename:
                             ConversationTitleSheet(title: workspace.title) { try workspace.renameCurrent($0) }
                         }
@@ -174,6 +177,46 @@ struct AppView: View {
                 .disabled(session?.workspace == nil || session?.isRunning == true)
         }.frame(height: 36).padding(.leading, 8)
     }
+    private func handleCommand(_ input: String) {
+        guard let target = session, !target.isRunning, !workspace.busy else { return }
+        Task { @MainActor in
+            do {
+                guard let invocation = try SlashCommand.parse(input) else { await target.send(); return }
+                let argument = invocation.argument
+                switch invocation.command {
+                case .resume:
+                    guard target.workspace != nil else { throw PiError("Open a workspace before resuming conversations") }
+                    sheet = .command(.resume, input)
+                case .model where argument.isEmpty: sheet = .command(.model, input)
+                case .name where argument.isEmpty: sheet = .command(.name, input)
+                case .quit: throw PiError("Use Command-Q to quit Pi Swift")
+                default:
+                    try await target.consumeCommand(input) {
+                        switch invocation.command {
+                        case .new: try await workspace.startNewConversation()
+                        case .name: try workspace.renameCurrent(argument); workspace.commandNotice = "Conversation renamed"
+                        case .model:
+                            try workspace.refreshProfiles()
+                            let selected = try SlashCommand.matchConnection(argument, profiles: workspace.profiles)
+                            try await workspace.selectCommandConnection(selected)
+                        case .settings: sheet = .connection
+                        case .compact: try await target.compact(argument); workspace.remember(); workspace.commandNotice = "Context compacted"
+                        case .session: sheet = .command(.information(try await target.sessionInformation()), "")
+                        case .copy:
+                            guard let text = target.messages.last(where: { $0.role == .assistant && !$0.text.isEmpty })?.text else { throw PiError("No assistant response to copy") }
+                            NSPasteboard.general.clearContents()
+                            guard NSPasteboard.general.setString(text, forType: .string) else { throw PiError("Could not copy the response") }
+                            workspace.commandNotice = "Copied last response"
+                        case .help:
+                            sheet = .command(.information(SlashCommand.desktop.map { "/" + $0.rawValue + " — " + $0.summary }.joined(separator: "\n\n")), "")
+                        default: break
+                        }
+                    }
+                    workspace.composerFocus += 1
+                }
+            } catch { workspace.error = String(describing: error) }
+        }
+    }
     private func insertTextFile() {
         let panel = NSOpenPanel()
         panel.title = "Insert text file"
@@ -229,8 +272,9 @@ struct AppView: View {
 private enum AppSheet: Identifiable {
     case connection
     case rename
+    case command(CommandSheetKind, String)
     var id: String {
-        switch self { case .connection: "connection"; case .rename: "rename" }
+        switch self { case .connection: "connection"; case .rename: "rename"; case .command: "command" }
     }
 }
 

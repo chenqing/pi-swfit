@@ -55,3 +55,11 @@ Connection names must be unambiguous; IDs always work. `--connection` cannot be 
 First Keychain access by `pf` may need approval in an interactive terminal. Noninteractive runs disable legacy Keychain dialogs and report missing authorization instead of hanging. Rebuilding an unsigned executable can require authorization again. `PF_API_KEY` is a per-process alternative for unattended runs. A saved key is never redirected to a changed profile endpoint: credential accounts include the profile ID, endpoint, API format and provider.
 
 CLI tools retain their existing noninteractive execution policy. Pi Swift’s per-call approval is a UI host policy; it does not silently become a terminal prompt in `pf`.
+
+### Interactive slash commands
+
+The line-oriented REPL handles `/new`, `/resume`, `/name [title]`, `/model [provider/model or connection]`, `/settings`, `/compact [instructions]`, `/session`, `/copy`, `/help` and `/quit` (`/exit` alias). `/resume` and argument-free `/model` show numbered saved choices; an empty answer cancels. Model selection uses saved Pi Swift connections. `/settings` prints the current route, workspace and agent directory; it does not implement upstream's terminal settings editor. `/copy` writes the last assistant text to the macOS clipboard.
+
+These commands are handled locally before prompting and are not user messages in JSONL. Failures keep the REPL open. `/compact` can call the configured provider. Print/JSON mode and piped prompts retain their existing prompt semantics, including text beginning with a slash. `--no-session` remains in memory after `/new`.
+
+See [the rollout plan and desktop behavior](SLASH_COMMANDS.md). Run `python3 scripts/smoke-slash.py` for offline PTY acceptance in addition to `scripts/smoke-cli.py`.

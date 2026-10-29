@@ -10,6 +10,7 @@ final class AppWorkspace {
     var session: ChatSession?
     var profile: ConnectionProfile?
     var error: String?
+    var commandNotice: String?
     var busy = false
     var connection = "Offline demo"
     let store = ConnectionStore()
@@ -167,10 +168,20 @@ final class AppWorkspace {
         libraryRevision += 1; composerFocus += 1
     }
     func newConversation() async {
-        guard !busy, session?.isRunning != true else { return }
+        do { try await startNewConversation() } catch { self.error = String(describing: error) }
+    }
+    func startNewConversation() async throws {
+        guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
         busy = true; defer { busy = false }
-        do { try saveDraft(); try await session?.reset(); composerGeneration += 1; newConversationRequest += 1; composerFocus += 1; searchTerm = ""; remember() }
-        catch { self.error = String(describing: error) }
+        try saveDraft(); try await session.reset()
+        composerGeneration += 1; newConversationRequest += 1; composerFocus += 1; searchTerm = ""; remember()
+    }
+    func selectCommandConnection(_ selected: ConnectionProfile) async throws {
+        guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
+        if selected.id == profile?.id { return }
+        busy = true; defer { busy = false }
+        try await session.selectConnection(selected, store: store)
+        profile = selected; connection = selected.name; remember()
     }
     func demo(_ scenario: DemoScenario, clearError: Bool = true) async {
         guard session?.isRunning != true else { return }

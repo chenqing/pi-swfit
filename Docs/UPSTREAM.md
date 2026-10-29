@@ -40,7 +40,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 | Session tree, persistence, compaction and retry SDK | Existing partial PiCodingAgent port |
 | Skills, settings and native Swift extension callbacks | Supported subset; see historical PORTING.md |
 | MCP HTTP / stdio, resources and OAuth | Native SDK; stdio/codemode are macOS-specific |
-| CLI print / JSONL / sessions | Native host implemented; subset documented in CLI.md |
+| CLI print / JSONL / sessions / slash commands | Native host subset; shared command parser and native selectors documented in CLI.md and SLASH_COMMANDS.md |
 | CLI read / write / edit / bash | Matching reviewed input schemas; native behavior limits documented |
 | CLI TUI, RPC, npm extensions and package installation | Not ported |
 | PiHost / PiChat / PiUI | Swift-native host and presentation; shared AgentSession persistence and native UI permission modes; not upstream APIs |
