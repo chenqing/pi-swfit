@@ -7,6 +7,7 @@ public struct MessageView: View {
     public let message: ChatMessage
     private let openChange: ((RecordedChange) -> Void)?
     @Environment(\.chatTheme) private var theme
+    @Environment(\.showsMessageActions) private var showsActions
     @State private var copied = false
     @State private var hovered = false
     @FocusState private var copyFocused: Bool
@@ -14,24 +15,19 @@ public struct MessageView: View {
     public var body: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
             if message.role == .user {
-                HStack(alignment: .top, spacing: 0) {
-                    Spacer(minLength: 48)
+                UserBubbleLayout {
                     messageBody
-                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: theme.cornerRadius))
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    copyButton.offset(y: 28)
                 }
             } else {
                 messageBody.frame(maxWidth: .infinity, alignment: .leading)
             }
-            if !message.text.isEmpty {
-                Button(action: copyMessage) {
-                    ChatIcon(copied ? .check : .copy, size: 14)
-                        .frame(width: 28, height: 24).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary).focused($copyFocused)
-                .opacity(hovered || copied || copyFocused ? 1 : 0)
-                .help("Copy message").accessibilityLabel("Copy message")
-                .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }
+            if message.role == .assistant && showsActions && !message.text.isEmpty {
+                copyButton
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
@@ -40,6 +36,16 @@ public struct MessageView: View {
         .accessibilityLabel(message.role == .user ? "Your message" : "Assistant message")
         .accessibilityAction(named: Text("Copy message"), copyMessage)
         .contextMenu { if !message.text.isEmpty { Button("Copy message", action: copyMessage) } }
+    }
+    private var copyButton: some View {
+        Button(action: copyMessage) {
+            ChatIcon(copied ? .check : .copy, size: 14)
+                .frame(width: 28, height: 24).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(.secondary).focused($copyFocused)
+        .opacity(hovered || copied || copyFocused ? 1 : 0)
+        .help("Copy message").accessibilityLabel("Copy message")
+        .task(id: copied) { if copied { try? await Task.sleep(for: .seconds(2)); copied = false } }
     }
     private var messageBody: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,7 +57,11 @@ public struct MessageView: View {
                     MarkdownMessage(message.text)
                 }
             }
-            ForEach(message.tools) { tool in ToolCallView(tool: tool, openChange: openChange) }
+            if !message.tools.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(message.tools) { tool in ToolCallView(tool: tool, openChange: openChange) }
+                }
+            }
         }
     }
     private func copyMessage() {

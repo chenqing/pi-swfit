@@ -6,7 +6,7 @@ public struct ChatTheme: Sendable {
     public var contentWidth: CGFloat
     public var cornerRadius: CGFloat
     public var bodyFont: Font
-    public init(accent: Color = .accentColor, accentForeground: Color = .white, contentWidth: CGFloat = 720, cornerRadius: CGFloat = 12, bodyFont: Font = .system(size: 15)) {
+    public init(accent: Color = .accentColor, accentForeground: Color = .white, contentWidth: CGFloat = 816, cornerRadius: CGFloat = 12, bodyFont: Font = .system(size: 15)) {
         self.accent = accent; self.accentForeground = accentForeground; self.contentWidth = contentWidth; self.cornerRadius = cornerRadius; self.bodyFont = bodyFont
     }
 }

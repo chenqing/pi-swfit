@@ -29,8 +29,8 @@ public struct ConversationView<MessageContent: View>: View {
         return session.displayedMessages.filter { $0.text.range(of: searchTerm, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     }
     public var body: some View {
-        VStack(spacing: 0) {
-            GeometryReader { geometry in
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     VStack(spacing: 0) {
                         if !searchTerm.isEmpty {
@@ -46,21 +46,23 @@ public struct ConversationView<MessageContent: View>: View {
                             }.font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8)
                         }
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 0) {
                                 if session.messages.isEmpty { emptyState.padding(.top, 36) }
-                                ForEach(session.displayedMessages) { message in
-                                    renderMessage(message).id(message.id)
-                                        .background(!searchTerm.isEmpty && message.text.range(of: searchTerm, options: [.caseInsensitive, .diacriticInsensitive]) != nil ? theme.accent.opacity(0.06) : .clear,
+                                ForEach(TranscriptRow.make(session.displayedMessages, isRunning: session.isRunning)) { row in
+                                    renderMessage(row.message)
+                                        .environment(\.showsMessageActions, row.showsActions)
+                                        .background(!searchTerm.isEmpty && row.message.text.range(of: searchTerm, options: [.caseInsensitive, .diacriticInsensitive]) != nil ? theme.accent.opacity(0.06) : .clear,
                                                     in: RoundedRectangle(cornerRadius: 8))
+                                        .padding(.top, row.spacingBefore).id(row.id)
                                 }
                                 if session.isRunning && session.approvals.pending.isEmpty {
                                     HStack(spacing: 8) {
                                         ProgressView().controlSize(.small)
                                         Text(session.state == .stopping ? "Stopping…" : "Working…").font(.caption).foregroundStyle(.secondary)
-                                    }
+                                    }.padding(.top, 12)
                                 }
                                 Color.clear.frame(height: 1).id("bottom")
-                            }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 24).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+                            }.padding(.horizontal, geometry.size.width < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
                                 .background(ScrollMetrics { remaining, movedUp in
                                     distance = remaining
                                     if movedUp { followsBottom = false }
@@ -87,35 +89,35 @@ public struct ConversationView<MessageContent: View>: View {
                         if let first = matches.first { followsBottom = false; proxy.scrollTo(first.id, anchor: .top) }
                     }
                 }
+                VStack(spacing: 12) {
+                    ForEach(session.approvals.pending) { approval in
+                        ApprovalView(approval: approval) { session.approvals.resolve(approval.id, allow: $0) }
+                    }
+                    if let error = session.error {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }
+                                .font(.callout).textSelection(.enabled)
+                            HStack(spacing: 16) {
+                                if let last = session.messages.last(where: { $0.role == .user }), !last.text.isEmpty {
+                                    Button(session.draft.isEmpty ? "Edit last message" : "Add last message to draft") {
+                                        appendToDraft(last.text)
+                                    }.disabled(session.isRunning || session.draft.hasSuffix(last.text))
+                                        .help("Prepare a new message. Completed tool actions remain in the conversation.")
+                                }
+                                if let composerContext {
+                                    Button("Manage connections…", action: composerContext.configure).disabled(session.isRunning)
+                                }
+                            }.font(.caption).buttonStyle(.borderless)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                            .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                    } else if session.state == .cancelled {
+                        Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
+                             identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
+                             send: { Task { await session.send() } }, stop: { session.stop() })
+                }.padding(.horizontal, geometry.size.width < 560 ? 16 : 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
             }
-            VStack(spacing: 12) {
-                ForEach(session.approvals.pending) { approval in
-                    ApprovalView(approval: approval) { session.approvals.resolve(approval.id, allow: $0) }
-                }
-                if let error = session.error {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }
-                            .font(.callout).textSelection(.enabled)
-                        HStack(spacing: 16) {
-                            if let last = session.messages.last(where: { $0.role == .user }), !last.text.isEmpty {
-                                Button(session.draft.isEmpty ? "Edit last message" : "Add last message to draft") {
-                                    appendToDraft(last.text)
-                                }.disabled(session.isRunning || session.draft.hasSuffix(last.text))
-                                    .help("Prepare a new message. Completed tool actions remain in the conversation.")
-                            }
-                            if let composerContext {
-                                Button("Manage connections…", action: composerContext.configure).disabled(session.isRunning)
-                            }
-                        }.font(.caption).buttonStyle(.borderless)
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-                } else if session.state == .cancelled {
-                    Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                }
-                Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
-                         identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
-                         send: { Task { await session.send() } }, stop: { session.stop() })
-            }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
         }
     }
     private func moveMatch(_ step: Int, proxy: ScrollViewProxy) {
