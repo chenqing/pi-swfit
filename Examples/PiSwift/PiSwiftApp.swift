@@ -97,7 +97,7 @@ struct AppView: View {
                         .accessibilityHidden(true)
                 }
                 .toolbar {
-                    ToolbarItem(placement: .navigation) { windowIdentity }
+                    ToolbarItem(placement: .navigation) { windowIdentity.id(showsSidebar) }
                     ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
                     ToolbarItemGroup(placement: .primaryAction) {
                         detailsButton
@@ -170,6 +170,7 @@ struct AppView: View {
                     .frame(maxWidth: 240, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).help("Rename conversation · " + workspace.title)
                 .accessibilityLabel("Rename conversation: " + workspace.title)
+                .padding(.leading, showsSidebar ? 24 : 8)
                 .disabled(session?.workspace == nil || session?.isRunning == true)
         }.frame(height: 36).padding(.leading, 8)
     }

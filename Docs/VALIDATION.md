@@ -116,3 +116,11 @@ Native acceptance used a temporary workspace and a loopback SSE fixture: `pf` ma
 - Permission choice belongs to the open ChatSession, never the upstream JSONL; reopening/reset starts in Manual. Non-bypass shell calls still ask. Bypass skips application prompts, not host denials, cancellation, preview consistency checks or macOS permissions.
 - Updated the user's existing local bundle after normal quit and a private backup of its previous bundle and agent directory. All three transcript hashes matched after replacement. The new binary triggered another macOS Keychain handoff. After the user completed it, the credential-backed app restored its conversation and model selection; the permission menu opened with Manual selected, and Escape returned focus to the composer. All three transcript hashes were verified unchanged again. No message or tool was submitted during this check.
 - README and screenshot assets remain unchanged.
+
+
+## Conversation title inset — 2026-10-29
+
+- Added a 24 pt leading inset between the visible sidebar boundary and the conversation title, with 8 pt additional separation from the sidebar control when collapsed. Recreates the toolbar identity view when sidebar visibility changes so AppKit refreshes its intrinsic layout instead of retaining a collapsed title region.
+- Native checks in the isolated dark fixture verified the visible inset and repeated sidebar collapse/expansion. No conversation state, permissions or README screenshots changed. The initial spacing-only build also received narrow-window inspection.
+- Serial regression suites passed all 1,160 tests. An additional run exposed an intermittent existing lazyStream observer assertion in PiAI; an unchanged rerun passed all 734 PiAI tests. No test or runtime implementation was changed for this presentation fix.
+- Final serial rerun after the toolbar identity adjustment passed all 1,160 tests. Debug and Release packaging passed. The user's local bundle was normally quit, backed up and updated; all three JSONL transcripts retained their hashes. The new executable is awaiting another user-completed macOS Keychain authorization.
