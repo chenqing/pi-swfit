@@ -7,6 +7,8 @@ struct ComposerEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var focused: Bool
     @Binding var height: CGFloat
+    var identity = ""
+    var focusRequest = 0
     let submit: () -> Void
 
     func makeNSView(context: Context) -> ComposerScrollView {
@@ -55,13 +57,15 @@ struct ComposerEditor: NSViewRepresentable {
         editor.focusChanged = { [weak coordinator] value in
             DispatchQueue.main.async { coordinator?.parent.focused = value }
         }
-        // Don't replace a marked range while an IME is composing.
-        if editor.string != text && !editor.hasMarkedText() {
-            editor.string = text
-            editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
-            editor.undoManager?.removeAllActions()
-        }
+        editor.synchronize(text, identity: identity)
         coordinator.requestFocus(focused, editor: editor)
+        if coordinator.lastFocusRequest != focusRequest {
+            coordinator.lastFocusRequest = focusRequest
+            DispatchQueue.main.async { [weak editor] in
+                guard let editor else { return }
+                editor.window?.makeFirstResponder(editor)
+            }
+        }
         coordinator.measure()
     }
 
@@ -71,6 +75,7 @@ struct ComposerEditor: NSViewRepresentable {
         var parent: ComposerEditor
         weak var scroll: ComposerScrollView?
         private var lastRequestedFocus = false
+        var lastFocusRequest = 0
         init(_ parent: ComposerEditor) { self.parent = parent }
         func requestFocus(_ requested: Bool, editor: ComposerTextView) {
             // A layout/state refresh must not reclaim focus from search or another field
@@ -82,8 +87,8 @@ struct ComposerEditor: NSViewRepresentable {
             }
         }
         func textDidChange(_ notification: Notification) {
-            guard let editor = notification.object as? NSTextView else { return }
-            parent.text = editor.string
+            guard let editor = notification.object as? ComposerTextView, !editor.isSynchronizing else { return }
+            if parent.text != editor.string { parent.text = editor.string }
             measure()
         }
         func measure() {
@@ -111,6 +116,45 @@ final class ComposerScrollView: NSScrollView {
 }
 
 final class ComposerTextView: NSTextView {
+    private let draftUndoManager = UndoManager()
+    override var undoManager: UndoManager? { draftUndoManager }
+    private var draftIdentity: String?
+    private(set) var isSynchronizing = false
+    /// Only a conversation switch clears undo. Same-draft insertions use AppKit editing.
+    func synchronize(_ text: String, identity: String) {
+        isSynchronizing = true; defer { isSynchronizing = false }
+        if draftIdentity != identity {
+            if hasMarkedText() { unmarkText() }
+            draftIdentity = identity
+            string = text
+            setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+            draftUndoManager.removeAllActions()
+        } else if string != text, !hasMarkedText() {
+            breakUndoCoalescing()
+            // SwiftUI/AX button actions can share an AppKit event group. Give each
+            // programmatic edit its own group so Send → Re-edit never cancels out.
+            while draftUndoManager.groupingLevel > 0 { draftUndoManager.endUndoGrouping() }
+            let groupsByEvent = draftUndoManager.groupsByEvent
+            draftUndoManager.groupsByEvent = false
+            draftUndoManager.beginUndoGrouping()
+            let range = NSRange(location: 0, length: (string as NSString).length)
+            if shouldChangeText(in: range, replacementString: text) {
+                textStorage?.replaceCharacters(in: range, with: text)
+                didChangeText()
+                setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+            }
+            draftUndoManager.endUndoGrouping()
+            draftUndoManager.groupsByEvent = groupsByEvent
+            breakUndoCoalescing()
+        }
+    }
+    @objc func undo(_ sender: Any?) { draftUndoManager.undo() }
+    @objc func redo(_ sender: Any?) { draftUndoManager.redo() }
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(undo(_:)) { return draftUndoManager.canUndo }
+        if item.action == #selector(redo(_:)) { return draftUndoManager.canRedo }
+        return super.validateUserInterfaceItem(item)
+    }
     var submit: (() -> Void)?
     var focusChanged: ((Bool) -> Void)?
     override func becomeFirstResponder() -> Bool {

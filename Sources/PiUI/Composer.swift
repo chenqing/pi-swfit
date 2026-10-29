@@ -29,11 +29,14 @@ public struct Composer: View {
     private let send: () -> Void
     private let stop: () -> Void
     private let context: ComposerContext?
+    private let identity: String
+    private let focusRequest: Int
     @State private var focused = false
     @State private var editorHeight: CGFloat = 28
     @State private var addingContent = false
     @FocusState private var fallbackFocused: Bool
-    public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, send: @escaping () -> Void, stop: @escaping () -> Void) {
+    public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, identity: String = "", focusRequest: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void) {
+        self.identity = identity; self.focusRequest = focusRequest
         _text = text; self.isRunning = isRunning; self.context = context; self.send = send; self.stop = stop
     }
     private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -112,7 +115,7 @@ public struct Composer: View {
     }
     @ViewBuilder private var editor: some View {
         #if os(macOS)
-        ComposerEditor(text: $text, focused: $focused, height: $editorHeight, submit: submit)
+        ComposerEditor(text: $text, focused: $focused, height: $editorHeight, identity: identity, focusRequest: focusRequest, submit: submit)
             .frame(height: editorHeight)
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {

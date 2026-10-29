@@ -14,6 +14,13 @@ struct PiSwiftApp: App {
         Window("Pi Swift", id: "main") { AppView(workspace: workspace).frame(minWidth: 640, minHeight: 560).onAppear { delegate.workspace = workspace } }
             .defaultSize(width: 1200, height: 760).windowStyle(.hiddenTitleBar)
             .windowToolbarStyle(.unified)
+            .commands {
+                CommandGroup(replacing: .newItem) {
+                    Button("New conversation") { Task { await workspace.newConversation() } }
+                        .keyboardShortcut("n", modifiers: .command)
+                        .disabled(workspace.busy || workspace.session == nil || workspace.session?.isRunning == true)
+                }
+            }
     }
 }
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -34,13 +41,13 @@ struct AppView: View {
     private var session: ChatSession? { workspace.session }
     private var connection: String { workspace.connection }
     @State private var sheet: AppSheet?
-    @State private var showsSidebar = true
+    @AppStorage("showsConversationSidebar") private var showsSidebar = true
     @State private var windowSize = CGSize.zero
     private var detailsFit: Bool { windowSize.width >= (showsSidebar ? 1080 : 848) }
-    @State private var showsDetails = true
+    @AppStorage("showsSessionDetails") private var showsDetails = true
     @State private var detailsExpansion = DetailsExpansion()
     @State private var showsCompactDetails = false
-    @State private var appearance = "system"
+    @AppStorage("appearance") private var appearance = "system"
     @State private var insertError: String?
     @AppStorage("conversationSidebarWidth") private var savedSidebarWidth = 232.0
     @State private var changeReader = ChangeReaderWindow()
@@ -65,7 +72,8 @@ struct AppView: View {
                                              modelChoices: workspace.cwd == nil ? [] : workspace.profiles.map { profile in
                                                  ComposerContext.ModelChoice(id: profile.id, title: profile.modelID, detail: profile.name,
                                                      selected: profile.id == workspace.profile?.id, select: { Task { await workspace.selectConnection(profile) } })
-                                             })) { message in
+                                             }), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
+                                         searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" }) { message in
                                                  MessageView(message: message, openChange: openChange)
                                              }
                             .frame(maxWidth: .infinity)

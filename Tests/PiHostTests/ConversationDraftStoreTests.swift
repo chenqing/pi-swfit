@@ -50,6 +50,28 @@ struct ConversationDraftStoreTests {
         #expect(throws: (any Error).self) { try store.load(for: session) }
         #expect(try Data(contentsOf: file) == invalid)
     }
+    @Test func listsLegacyAndNewUnsentDraftsOnlyInTheirWorkspace() throws {
+        let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
+        let paths = HostPaths(agentDir: root.appendingPathComponent("agent").path)
+        let store = ConversationDraftStore(paths: paths)
+        let cwd = root.appendingPathComponent("project").path
+        let first = paths.sessionDirectory(cwd: cwd) + "/first.jsonl"
+        let second = paths.sessionDirectory(cwd: cwd) + "/second.jsonl"
+        let saved = paths.sessionDirectory(cwd: cwd) + "/saved.jsonl"
+        try store.save("旧草稿", for: first)
+        try store.save("New draft", for: second, connectionID: "connection-two")
+        try store.save("Saved transcript draft", for: saved)
+        try paths.prepareSessionDirectory(cwd: cwd)
+        try Data("transcript".utf8).write(to: URL(fileURLWithPath: saved))
+        try store.save("Other workspace", for: paths.sessionDirectory(cwd: cwd + "-other") + "/other.jsonl")
+        let result = try store.unsent(cwd: cwd + "/.")
+        #expect(result.count == 2)
+        #expect(result.first { $0.text == "旧草稿" }?.connectionID == nil)
+        #expect(result.first { $0.text == "New draft" }?.connectionID == "connection-two")
+        #expect(!FileManager.default.fileExists(atPath: first))
+        try store.save("", for: first)
+        #expect(try store.unsent(cwd: cwd).count == 1)
+    }
     @Test func occupiedDraftLockFailsWithoutOverwritingSavedText() throws {
         let root = try root(); defer { try? FileManager.default.removeItem(at: root) }
         let store = ConversationDraftStore(paths: HostPaths(agentDir: root.path))

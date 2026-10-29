@@ -9,49 +9,83 @@ public struct ConversationView<MessageContent: View>: View {
     private let renderMessage: (ChatMessage) -> MessageContent
     private let brandIcon: Image?
     private let composerContext: ComposerContext?
+    private let composerGeneration: Int
+    private let focusRequest: Int
+    private let searchTerm: String
+    private let searchRequest: UUID?
+    private let closeSearch: () -> Void
+    @State private var localFocus = 0
+    @State private var matchIndex = 0
     @Environment(\.chatTheme) private var theme
     @State private var followsBottom = true
     @State private var distance: CGFloat = 0
-    public init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
+    public init(session: ChatSession, brandIcon: Image? = nil, composerContext: ComposerContext? = nil, composerGeneration: Int = 0, focusRequest: Int = 0, searchTerm: String = "", searchRequest: UUID? = nil, closeSearch: @escaping () -> Void = {}, @ViewBuilder message: @escaping (ChatMessage) -> MessageContent) {
+        self.composerGeneration = composerGeneration; self.focusRequest = focusRequest
+        self.searchTerm = searchTerm; self.searchRequest = searchRequest; self.closeSearch = closeSearch
         self.session = session; self.brandIcon = brandIcon; self.composerContext = composerContext; renderMessage = message
+    }
+    private var matches: [ChatMessage] {
+        guard !searchTerm.isEmpty else { return [] }
+        return session.displayedMessages.filter { $0.text.range(of: searchTerm, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     }
     public var body: some View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            if session.messages.isEmpty { emptyState.padding(.top, 36) }
-                            ForEach(session.displayedMessages) { message in renderMessage(message).id(message.id) }
-                            if session.isRunning && session.approvals.pending.isEmpty {
-                                HStack(spacing: 8) {
-                                    ProgressView().controlSize(.small)
-                                    Text(session.state == .stopping ? "Stopping…" : "Working…").font(.caption).foregroundStyle(.secondary)
+                    VStack(spacing: 0) {
+                        if !searchTerm.isEmpty {
+                            HStack(spacing: 10) {
+                                Text(matches.isEmpty ? "No text matches in this branch" : "Match \(min(matchIndex + 1, matches.count)) of \(matches.count)")
+                                Text("“\(searchTerm)”").lineLimit(1).truncationMode(.middle)
+                                Spacer()
+                                Button { moveMatch(-1, proxy: proxy) } label: { Image(systemName: "chevron.up") }
+                                    .accessibilityLabel("Previous match").disabled(matches.isEmpty)
+                                Button { moveMatch(1, proxy: proxy) } label: { Image(systemName: "chevron.down") }
+                                    .accessibilityLabel("Next match").disabled(matches.isEmpty)
+                                Button(action: closeSearch) { Image(systemName: "xmark") }.accessibilityLabel("Close search results")
+                            }.font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless).padding(.horizontal, 24).padding(.vertical, 8)
+                        }
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 18) {
+                                if session.messages.isEmpty { emptyState.padding(.top, 36) }
+                                ForEach(session.displayedMessages) { message in
+                                    renderMessage(message).id(message.id)
+                                        .background(!searchTerm.isEmpty && message.text.range(of: searchTerm, options: [.caseInsensitive, .diacriticInsensitive]) != nil ? theme.accent.opacity(0.06) : .clear,
+                                                    in: RoundedRectangle(cornerRadius: 8))
+                                }
+                                if session.isRunning && session.approvals.pending.isEmpty {
+                                    HStack(spacing: 8) {
+                                        ProgressView().controlSize(.small)
+                                        Text(session.state == .stopping ? "Stopping…" : "Working…").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                Color.clear.frame(height: 1).id("bottom")
+                            }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 24).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
+                                .background(ScrollMetrics { remaining, movedUp in
+                                    distance = remaining
+                                    if movedUp { followsBottom = false }
+                                    if remaining < 40 { followsBottom = true }
+                                    else if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) }
+                                })
+                        }.coordinateSpace(name: "pi-conversation")
+                            .onChange(of: session.messages.count) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
+                            .onChange(of: session.messages.last?.text) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
+                            .overlay(alignment: .bottom) {
+                                if !followsBottom && distance > 80 {
+                                    Button { followsBottom = true; proxy.scrollTo("bottom", anchor: .bottom) } label: {
+                                        ChatIcon(.latest, size: 14)
+                                            .frame(width: 30, height: 30)
+                                            .background(.regularMaterial, in: Circle())
+                                            .overlay { Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 1) }
+                                            .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
+                                    }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                        .help("Back to latest").accessibilityLabel("Back to latest").padding(.bottom, 8)
                                 }
                             }
-                            Color.clear.frame(height: 1).id("bottom")
-                        }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 24).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
-                            .background(ScrollMetrics { remaining, movedUp in
-                                distance = remaining
-                                if movedUp { followsBottom = false }
-                                if remaining < 40 { followsBottom = true }
-                                else if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) }
-                            })
-                    }.coordinateSpace(name: "pi-conversation")
-                        .onChange(of: session.messages.count) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
-                        .onChange(of: session.messages.last?.text) { if followsBottom { proxy.scrollTo("bottom", anchor: .bottom) } }
-                        .overlay(alignment: .bottom) {
-                            if !followsBottom && distance > 80 {
-                                Button { followsBottom = true; proxy.scrollTo("bottom", anchor: .bottom) } label: {
-                                    ChatIcon(.latest, size: 14)
-                                        .frame(width: 30, height: 30)
-                                        .background(.regularMaterial, in: Circle())
-                                        .overlay { Circle().strokeBorder(.primary.opacity(0.08), lineWidth: 1) }
-                                        .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
-                                }.buttonStyle(.plain).foregroundStyle(.secondary)
-                                    .help("Back to latest").accessibilityLabel("Back to latest").padding(.bottom, 8)
-                            }
-                        }
+                    }.task(id: searchRequest) {
+                        matchIndex = 0
+                        if let first = matches.first { followsBottom = false; proxy.scrollTo(first.id, anchor: .top) }
+                    }
                 }
             }
             VStack(spacing: 12) {
@@ -59,15 +93,39 @@ public struct ConversationView<MessageContent: View>: View {
                     ApprovalView(approval: approval) { session.approvals.resolve(approval.id, allow: $0) }
                 }
                 if let error = session.error {
-                    Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }.font(.callout).foregroundStyle(.red)
-                        .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }
+                            .font(.callout).textSelection(.enabled)
+                        HStack(spacing: 16) {
+                            if let last = session.messages.last(where: { $0.role == .user }), !last.text.isEmpty {
+                                Button(session.draft.isEmpty ? "Edit last message" : "Add last message to draft") {
+                                    appendToDraft(last.text)
+                                }.disabled(session.isRunning || session.draft.hasSuffix(last.text))
+                                    .help("Prepare a new message. Completed tool actions remain in the conversation.")
+                            }
+                            if let composerContext {
+                                Button("Manage connections…", action: composerContext.configure).disabled(session.isRunning)
+                            }
+                        }.font(.caption).buttonStyle(.borderless)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
                 } else if session.state == .cancelled {
                     Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
+                         identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
                          send: { Task { await session.send() } }, stop: { session.stop() })
             }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 16).frame(maxWidth: theme.contentWidth).frame(maxWidth: .infinity)
         }
+    }
+    private func moveMatch(_ step: Int, proxy: ScrollViewProxy) {
+        guard !matches.isEmpty else { return }
+        matchIndex = (matchIndex + step + matches.count) % matches.count
+        followsBottom = false; proxy.scrollTo(matches[matchIndex].id, anchor: .top)
+    }
+    private func appendToDraft(_ text: String) {
+        session.draft += (session.draft.isEmpty ? "" : "\n\n") + text
+        localFocus += 1
     }
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -90,7 +148,7 @@ public struct ConversationView<MessageContent: View>: View {
         }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 30)
     }
     private func suggestion(_ text: String, symbol: String) -> some View {
-        Button { session.draft = text } label: {
+        Button { appendToDraft(text) } label: {
             HStack(spacing: 10) {
                 Image(systemName: symbol).font(.system(size: 16, weight: .regular)).foregroundStyle(.secondary).frame(width: 18)
                 Text(text).font(.system(size: 13))

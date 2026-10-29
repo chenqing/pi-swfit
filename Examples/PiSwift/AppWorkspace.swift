@@ -15,11 +15,16 @@ final class AppWorkspace {
     let store = ConnectionStore()
     var profiles: [ConnectionProfile] = []
     var libraryRevision = 0
+    var composerGeneration = 0
+    var newConversationRequest = 0
+    var composerFocus = 0
+    var searchTerm = ""
+    var searchRequest = UUID()
     @ObservationIgnored private var draftSaveTask: Task<Void, Never>?
     private var drafts: ConversationDraftStore { ConversationDraftStore(paths: store.paths) }
     private func saveDraft() throws {
         draftSaveTask?.cancel(); draftSaveTask = nil
-        if let session, let file = session.sessionFile { try drafts.save(session.draft, for: file) }
+        if let session, let file = session.sessionFile { try drafts.save(session.draft, for: file, connectionID: session.connectionID) }
     }
     func scheduleDraftSave() {
         draftSaveTask?.cancel()
@@ -58,6 +63,7 @@ final class AppWorkspace {
         guard session === target else { throw PiError("The conversation changed. Insert the file again in the new conversation.") }
         guard !content.isEmpty else { return }
         target.draft += (target.draft.isEmpty ? "" : "\n\n") + content
+        composerFocus += 1
     }
 
     func start() async {
@@ -119,7 +125,7 @@ final class AppWorkspace {
             if archived, session?.sessionFile == info.path {
                 let draft = session?.draft ?? ""
                 try saveDraft()
-                try await session?.reset(); session?.draft = draft; remember()
+                try await session?.reset(); composerGeneration += 1; session?.draft = draft; remember()
                 try saveDraft()
             }
             try library.update(info.path, archived: archived); libraryRevision += 1
@@ -136,10 +142,34 @@ final class AppWorkspace {
         try await replace(next, profile: selected)
         remember()
     }
+    func unsentDrafts() throws -> [ConversationDraftStore.Draft] {
+        guard let cwd else { return [] }
+        return try drafts.unsent(cwd: cwd)
+    }
+    func resumeDraft(_ draft: ConversationDraftStore.Draft) async throws {
+        guard !busy, session?.isRunning != true, let cwd else { return }
+        if session?.sessionFile == draft.sessionFile { composerFocus += 1; return }
+        busy = true; defer { busy = false }
+        let selected: ConnectionProfile
+        if let id = draft.connectionID {
+            guard let saved = try store.load().profile(id) else { throw PiError("Restore this draft’s saved connection in Manage connections first.") }
+            selected = saved
+        } else {
+            guard let current = profile else { throw PiError("Choose a connection to restore this older draft.") }
+            selected = current
+        }
+        let next = try await ChatSession.openCoding(cwd: cwd, profile: selected, store: store)
+        try await replace(next, profile: selected, draftFile: draft.sessionFile)
+        // Keep the old recovery copy until both the new copy and bookmark are durable.
+        try saveDraft()
+        try persistWorkspace()
+        try drafts.save("", for: draft.sessionFile)
+        libraryRevision += 1; composerFocus += 1
+    }
     func newConversation() async {
         guard !busy, session?.isRunning != true else { return }
         busy = true; defer { busy = false }
-        do { try saveDraft(); try await session?.reset(); remember() }
+        do { try saveDraft(); try await session?.reset(); composerGeneration += 1; newConversationRequest += 1; composerFocus += 1; searchTerm = ""; remember() }
         catch { self.error = String(describing: error) }
     }
     func demo(_ scenario: DemoScenario, clearError: Bool = true) async {
@@ -174,6 +204,7 @@ final class AppWorkspace {
             throw error
         }
         let old = session
+        composerGeneration += 1; searchTerm = ""
         session = next; self.profile = profile; connection = profile?.name ?? "Offline demo"; error = nil
         await old?.shutdown()
     }

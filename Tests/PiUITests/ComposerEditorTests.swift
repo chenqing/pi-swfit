@@ -22,6 +22,47 @@ struct ComposerEditorTests {
         coordinator.requestFocus(true, editor: editor)
         #expect(window.firstResponder === editor)
     }
+    @Test func programmaticDraftChangesUndoAndRedoWithoutCrossingSessions() throws {
+        let editor = ComposerTextView()
+        editor.allowsUndo = true
+        let undo = try #require(editor.undoManager)
+        undo.groupsByEvent = false
+        editor.synchronize("Original 中文", identity: "first")
+        editor.synchronize("Original 中文\n\nInserted file", identity: "first")
+        #expect(undo.canUndo)
+        let undoItem = NSMenuItem(title: "Undo", action: #selector(ComposerTextView.undo(_:)), keyEquivalent: "z")
+        #expect(editor.validateUserInterfaceItem(undoItem))
+        editor.undo(nil)
+        #expect(editor.string == "Original 中文")
+        editor.redo(nil)
+        #expect(editor.string == "Original 中文\n\nInserted file")
+        editor.synchronize("Different draft", identity: "second")
+        #expect(!undo.canUndo)
+        #expect(!editor.validateUserInterfaceItem(undoItem))
+        #expect(!undo.canRedo)
+        #expect(editor.string == "Different draft")
+    }
+    @Test func sendThenReeditAreSeparateUndoActionsEvenWithinOneEvent() {
+        let editor = ComposerTextView(); editor.allowsUndo = true
+        editor.synchronize("Request", identity: "first")
+        editor.synchronize("", identity: "first")
+        editor.synchronize("Request", identity: "first")
+        editor.undo(nil)
+        #expect(editor.string == "")
+        editor.undo(nil)
+        #expect(editor.string == "Request")
+    }
+    @Test func sameSessionSynchronizationDoesNotReplaceMarkedText() {
+        let editor = ComposerTextView()
+        editor.synchronize("", identity: "first")
+        editor.setMarkedText("中文", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        editor.synchronize("External text", identity: "first")
+        #expect(editor.hasMarkedText())
+        #expect(editor.string == "中文")
+        editor.synchronize("Another conversation", identity: "second")
+        #expect(!editor.hasMarkedText())
+        #expect(editor.string == "Another conversation")
+    }
     private func key(_ modifiers: NSEvent.ModifierFlags = [], repeatKey: Bool = false) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
                         windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",

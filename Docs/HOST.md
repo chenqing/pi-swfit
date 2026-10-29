@@ -38,3 +38,5 @@ PF_AGENT_DIR=/printed/agent_dir ./scripts/run-app.sh
 ```
 
 Connect to the printed endpoint with model `fixture` and key `local-fixture-only`, choose the printed workspace, then ask to read and update `sample.txt`. The fixture exercises real loopback HTTP/SSE, read/edit approval, the actual filesystem, Keychain storage and JSONL persistence. Quit the app, run `pf --continue` in that workspace with the same `PF_AGENT_DIR`, then reopen the app. This is a deterministic local fixture, not proof of any external provider's behavior.
+
+Unsent desktop drafts are discoverable by their canonical workspace session directory even before JSONL creation. Version-1 draft sidecars now optionally include `connectionID`; existing files remain readable. Restoring an unsent draft creates a new session identity, durably saves its draft and workspace bookmark, then retires the old sidecar. Legacy drafts without a connection association use the currently selected connection. No prompt is sent during recovery, and upstream transcript entries are unchanged.
