@@ -190,12 +190,6 @@ public struct Composer: View {
         #if os(macOS)
         ComposerEditor(text: $text, focused: $focused, height: $editorHeight, identity: identity, focusRequest: focusRequest, commandKey: commandKey, submit: submit)
             .frame(height: editorHeight)
-            .overlay(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text("Ask something…").font(.system(size: 14)).foregroundStyle(.tertiary)
-                        .padding(.top, 4).allowsHitTesting(false)
-                }
-            }
             .help("Return to send · Shift-Return for a new line")
         #else
         TextField("Ask something…", text: $text, axis: .vertical)

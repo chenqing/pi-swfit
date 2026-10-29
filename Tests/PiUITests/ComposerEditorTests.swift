@@ -6,6 +6,33 @@ import SwiftUI
 
 @MainActor
 struct ComposerEditorTests {
+    @Test func placeholderTracksCompositionBeforeDraftBindingChanges() {
+        let editor = ComposerTextView()
+        editor.synchronize("", identity: "first")
+        #expect(editor.showsPlaceholder)
+        editor.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        #expect(editor.hasMarkedText())
+        #expect(!editor.showsPlaceholder)
+        // A refresh with the still-empty model must not restore the hint.
+        editor.synchronize("", identity: "first")
+        #expect(!editor.showsPlaceholder)
+        editor.insertText("你", replacementRange: NSRange(location: NSNotFound, length: 0))
+        #expect(editor.string == "你")
+        #expect(!editor.hasMarkedText())
+        #expect(!editor.showsPlaceholder)
+        editor.synchronize("", identity: "first")
+        #expect(editor.showsPlaceholder)
+        // Use a fresh input event context for cancellation; synchronize closes
+        // the previous native undo event when it clears the draft above.
+        let cancelled = ComposerTextView()
+        cancelled.setMarkedText("zhong", selectedRange: NSRange(location: 5, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        cancelled.setMarkedText("", selectedRange: NSRange(location: 0, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        cancelled.unmarkText()
+        #expect(cancelled.showsPlaceholder)
+        editor.synchronize("Restored draft", identity: "second")
+        #expect(!editor.showsPlaceholder)
+    }
+
     @Test func commandNavigationDoesNotHijackMarkedTextOrShiftReturn() throws {
         let editor = ComposerTextView()
         var keys: [UInt16] = []

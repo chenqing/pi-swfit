@@ -118,13 +118,37 @@ final class ComposerScrollView: NSScrollView {
 }
 
 final class ComposerTextView: NSTextView {
+    // Marked text can change before the SwiftUI draft binding. Draw the hint in
+    // the same native view as the composition so the two cannot overlap.
+    var showsPlaceholder: Bool { string.isEmpty && !hasMarkedText() }
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard showsPlaceholder else { return }
+        ("Ask something…" as NSString).draw(at: textContainerOrigin, withAttributes: [
+            .font: font ?? NSFont.systemFont(ofSize: 14),
+            .foregroundColor: NSColor.tertiaryLabelColor
+        ])
+    }
+    override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+        needsDisplay = true
+    }
+    override func unmarkText() {
+        super.unmarkText()
+        needsDisplay = true
+    }
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
     private let draftUndoManager = UndoManager()
     override var undoManager: UndoManager? { draftUndoManager }
     private var draftIdentity: String?
     private(set) var isSynchronizing = false
     /// Only a conversation switch clears undo. Same-draft insertions use AppKit editing.
     func synchronize(_ text: String, identity: String) {
-        isSynchronizing = true; defer { isSynchronizing = false }
+        isSynchronizing = true
+        defer { isSynchronizing = false; needsDisplay = true }
         if draftIdentity != identity {
             if hasMarkedText() { unmarkText() }
             draftIdentity = identity
