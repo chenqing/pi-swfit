@@ -14,11 +14,17 @@ public struct ConversationDraftStore: Sendable {
         public let connectionID: String?
         public let modified: Date
     }
+    /// A non-nil position with a nil leaf means before the first entry.
+    public struct Position: Codable, Sendable {
+        public let leafID: String?
+        public init(leafID: String?) { self.leafID = leafID }
+    }
     private struct Entry: Codable {
         let version: Int
         let sessionFile: String
         let text: String
         var connectionID: String?
+        var position: Position?
     }
     private func location(_ sessionFile: String) -> (key: String, file: URL) {
         let key = URL(fileURLWithPath: sessionFile).standardizedFileURL.resolvingSymlinksInPath().path
@@ -31,6 +37,13 @@ public struct ConversationDraftStore: Sendable {
         let entry = try JSONDecoder().decode(Entry.self, from: Data(contentsOf: file))
         guard entry.version == 1, entry.sessionFile == key else { throw PiError("This draft has an unsupported format or belongs to another conversation") }
         return entry.text
+    }
+    public func position(for sessionFile: String) throws -> Position? {
+        let (key, file) = location(sessionFile)
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        let entry = try JSONDecoder().decode(Entry.self, from: Data(contentsOf: file))
+        guard entry.version == 1, entry.sessionFile == key else { throw PiError("Invalid draft position") }
+        return entry.text.isEmpty ? nil : entry.position
     }
     /// Includes legacy drafts: the workspace is identified by its canonical session directory.
     /// Transcripts already represented in the conversation list are excluded.
@@ -51,13 +64,13 @@ public struct ConversationDraftStore: Sendable {
                              modified: try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate ?? .distantPast)
             }.sorted { $0.modified > $1.modified }
     }
-    public func save(_ text: String, for sessionFile: String, connectionID: String? = nil) throws {
+    public func save(_ text: String, for sessionFile: String, connectionID: String? = nil, position: Position? = nil) throws {
         let (key, file) = location(sessionFile)
         let lock = try HostFileLock(file.path + ".lock"); defer { lock.release() }
         if text.isEmpty {
             if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
         } else {
-            try writePrivateJSON(Entry(version: 1, sessionFile: key, text: text, connectionID: connectionID), to: file)
+            try writePrivateJSON(Entry(version: 1, sessionFile: key, text: text, connectionID: connectionID, position: position), to: file)
         }
     }
 }

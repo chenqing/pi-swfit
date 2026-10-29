@@ -1,4 +1,5 @@
 import Foundation
+import PiLineEditor
 import PiHost
 import PiAI
 import PiAgent
@@ -163,8 +164,13 @@ public enum PFCLI {
             for text in prompts { try await prompt(text); if runFailed.current { break } }
             if interactive {
                 while true {
-                    diagnostic("\npf › ")
-                    guard let line = readLine() else { break }
+                    let draft = commands.pendingDraft.withLock { value -> String in
+                        let draft = value; value = ""; return draft
+                    }
+                    guard let buffer = pf_readline("\npf › ", draft) else { break }
+                    let line = String(cString: buffer).replacingOccurrences(of: "\r\n", with: "\n")
+                        .replacingOccurrences(of: "\r", with: "\n")
+                    free(buffer)
                     if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
                     do {
                         if let invocation = try SlashCommand.parse(line) {

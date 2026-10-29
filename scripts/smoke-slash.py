@@ -10,13 +10,16 @@ import tempfile
 import time
 
 root = Path(__file__).resolve().parents[1]
-bin_dir = subprocess.check_output(['swift', 'build', '--show-bin-path'], cwd=root, text=True).strip()
+pf = os.environ.get('PF_TEST_EXECUTABLE')
+if not pf:
+    bin_dir = subprocess.check_output(['swift', 'build', '--show-bin-path'], cwd=root, text=True).strip()
+    pf = str(Path(bin_dir) / 'pf')
 with tempfile.TemporaryDirectory(prefix='pf-slash-') as temporary:
     directory = Path(temporary)
     master, slave = pty.openpty()
     env = dict(os.environ, PF_AGENT_DIR=str(directory/'agent'))
     env.pop('PF_MODEL', None)
-    process = subprocess.Popen([str(Path(bin_dir)/'pf'), '--demo'], stdin=slave, stdout=slave, stderr=slave, cwd=directory, env=env)
+    process = subprocess.Popen([pf, '--demo'], stdin=slave, stdout=slave, stderr=slave, cwd=directory, env=env)
     os.close(slave)
     pending = b''
     def until(marker):
@@ -45,7 +48,13 @@ with tempfile.TemporaryDirectory(prefix='pf-slash-') as temporary:
         assert 'does not take arguments' in send('/new unexpected')
         send('second fixture message')
         os.write(master, b'/quit\n')
-        assert process.wait(timeout=10) == 0
+        # Drain terminal redraw/output while libedit restores the terminal on exit.
+        deadline = time.monotonic() + 10
+        while process.poll() is None and time.monotonic() < deadline:
+            if select.select([master], [], [], 0.1)[0]:
+                try: os.read(master, 65536)
+                except OSError: break
+        assert process.wait(timeout=3) == 0
         users = []
         for file in (directory/'agent').rglob('*.jsonl'):
             entries = [json.loads(line) for line in file.read_text().splitlines()]

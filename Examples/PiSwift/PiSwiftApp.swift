@@ -184,6 +184,9 @@ struct AppView: View {
                 guard let invocation = try SlashCommand.parse(input) else { await target.send(); return }
                 let argument = invocation.argument
                 switch invocation.command {
+                case .thinking where argument.isEmpty: sheet = .command(.thinking, input)
+                case .tree: sheet = .command(.tree, input)
+                case .fork: sheet = .command(.fork, input)
                 case .resume:
                     guard target.workspace != nil else { throw PiError("Open a workspace before resuming conversations") }
                     sheet = .command(.resume, input)
@@ -193,6 +196,9 @@ struct AppView: View {
                 default:
                     try await target.consumeCommand(input) {
                         switch invocation.command {
+                        case .thinking:
+                            try await target.selectThinking(argument)
+                            workspace.commandNotice = "Thinking: " + argument.lowercased()
                         case .new: try await workspace.startNewConversation()
                         case .name: try workspace.renameCurrent(argument); workspace.commandNotice = "Conversation renamed"
                         case .model:

@@ -25,7 +25,7 @@ final class AppWorkspace {
     private var drafts: ConversationDraftStore { ConversationDraftStore(paths: store.paths) }
     private func saveDraft() throws {
         draftSaveTask?.cancel(); draftSaveTask = nil
-        if let session, let file = session.sessionFile { try drafts.save(session.draft, for: file, connectionID: session.connectionID) }
+        if let session, let file = session.sessionFile { try drafts.save(session.draft, for: file, connectionID: session.connectionID, position: session.draftPosition) }
     }
     func scheduleDraftSave() {
         draftSaveTask?.cancel()
@@ -175,6 +175,15 @@ final class AppWorkspace {
         busy = true; defer { busy = false }
         try saveDraft(); try await session.reset()
         composerGeneration += 1; newConversationRequest += 1; composerFocus += 1; searchTerm = ""; remember()
+    }
+    func navigate(to id: String, fork: Bool, summarize: Bool, instructions: String) async throws {
+        guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
+        busy = true; defer { busy = false }
+        try saveDraft()
+        try await session.navigate(to: id, fork: fork, summarize: summarize, instructions: instructions)
+        composerGeneration += 1; composerFocus += 1; libraryRevision += 1; searchTerm = ""
+        try saveDraft(); remember()
+        commandNotice = fork ? "Fork created · edit the restored message to continue" : "Moved to selected point"
     }
     func selectCommandConnection(_ selected: ConnectionProfile) async throws {
         guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }

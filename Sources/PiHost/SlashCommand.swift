@@ -4,7 +4,7 @@ import PiCodingAgent
 
 /// Native host commands. Names follow upstream; presentation belongs to each host.
 public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
-    case new, resume, name, model, settings, compact, session, copy, help, quit
+    case new, resume, name, model, thinking, tree, fork, settings, compact, session, copy, help, quit
     public var id: String { rawValue }
     public var summary: String {
         switch self {
@@ -12,6 +12,9 @@ public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
         case .resume: "Resume a saved conversation"
         case .name: "Rename this conversation"
         case .model: "Choose a saved model connection"
+        case .thinking: "Choose the model’s thinking level"
+        case .tree: "Navigate branches in this conversation"
+        case .fork: "Fork from a previous user message"
         case .settings: "Open connection settings"
         case .compact: "Summarize the current model context"
         case .session: "Show session info and usage"
@@ -21,7 +24,7 @@ public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
         }
     }
     public var argumentHint: String? {
-        switch self { case .name: "title"; case .model: "provider/model or connection"; case .compact: "instructions"; default: nil }
+        switch self { case .thinking: "level"; case .name: "title"; case .model: "provider/model or connection"; case .compact: "instructions"; default: nil }
     }
     public static var desktop: [Self] { allCases.filter { $0 != .quit } }
     public static func suggestions(_ input: String, commands: [Self] = desktop) -> [Self] {

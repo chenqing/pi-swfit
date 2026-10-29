@@ -31,6 +31,9 @@ public final class ChatSession {
     public var permissionMode: ChatPermissionMode { approvals.permissionMode }
     public var canSelectPermissionMode: Bool { managesApprovals && !isRunning && !isChangingConnection && approvals.pending.isEmpty }
     public var isRunning: Bool { active }
+    public var draftPosition: ConversationDraftStore.Position? {
+        codingHost.map { .init(leafID: $0.manager.getLeafId()) }
+    }
     public var sessionFile: String? { codingHost?.manager.getSessionFile() }
     public var workspace: String? { codingHost?.cwd }
     public var connectionID: String? { codingHost?.connectionID }
@@ -132,6 +135,10 @@ public final class ChatSession {
             manager = try SessionManager.open(sessionFile, store.paths.sessionDirectory(cwd: cwd), cwd)
             guard manager.getHeader().map({ HostPaths.canonicalWorkspace($0.cwd) }) == cwd else { throw PiError("This session belongs to a different workspace") }
         } else { manager = try SessionManager.create(cwd, store.paths.sessionDirectory(cwd: cwd)) }
+        if let sessionFile, let position = try ConversationDraftStore(paths: store.paths).position(for: sessionFile) {
+            if let leaf = position.leafID { try manager.branch(leaf) }
+            else { manager.resetLeaf() }
+        }
         let key = try await Task.detached { try store.key(for: profile) }.value
         var options = AgentOptions(initialState: AgentInitialState(systemPrompt: codingSystemPrompt(cwd: cwd),
             model: try profile.model(), tools: PiHost.createCodingTools(cwd: cwd)), streamFn: streamFn,
@@ -180,6 +187,46 @@ public final class ChatSession {
             else if draft != input { draft += "\n\n" + input }
             throw error
         }
+    }
+
+    public func thinkingOptions() async throws -> (levels: [ModelThinkingLevel], current: ModelThinkingLevel) {
+        guard let host = codingHost else { throw PiError("Open a workspace to choose thinking") }
+        return (await host.session.getAvailableThinkingLevels(), await host.session.thinkingLevel)
+    }
+    public func selectThinking(_ input: String) async throws {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Wait for the conversation to be idle") }
+        _ = try await host.selectThinking(input)
+    }
+    public func navigationItems(forkOnly: Bool = false) throws -> [SessionNavigationItem] {
+        guard let host = codingHost else { throw PiError("Open a workspace to navigate history") }
+        return host.navigationItems(forkOnly: forkOnly)
+    }
+    public func navigate(to id: String, fork: Bool, summarize: Bool = false, instructions: String = "") async throws {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Wait for the conversation to be idle") }
+        guard draft.isEmpty else { throw PiError("Save or clear the draft before navigating history") }
+        active = true; error = nil; state = .running
+        defer {
+            active = false
+            if state == .stopping { state = .cancelled }
+            else if state == .running { state = .idle }
+        }
+        let text: String?
+        if fork {
+            let result = try await host.fork(before: id)
+            codingHost = result.host; agent = result.host.session.agent; text = result.text
+            await host.shutdown()
+            approvals.reset(); approvals.permissionMode = .manual
+        } else {
+            text = try await host.session.navigateTree(id, summarize: summarize,
+                customInstructions: instructions.isEmpty ? nil : instructions)
+        }
+        if let current = codingHost {
+            restore(current.manager.buildSessionContext().messages)
+            name = current.manager.getSessionName()
+        }
+        // A new draft typed while summarizing is never overwritten.
+        if let text, !text.isEmpty { draft += (draft.isEmpty ? "" : "\n\n") + text }
+        state = .idle
     }
 
     public func sessionInformation() async throws -> String {

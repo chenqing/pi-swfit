@@ -6,6 +6,7 @@ import PiCodingAgent
 
 /// Line-oriented presentation of the same host command vocabulary as the desktop.
 final class CLICommands: Sendable {
+    let pendingDraft = Locked("")
     let activeHost: Locked<CodingSessionHost>
     let connections: ConnectionStore
     let demo: Bool
@@ -20,6 +21,39 @@ final class CLICommands: Sendable {
         let host = activeHost.current, session = host.session
         guard !session.isStreaming else { throw PiError("Wait for the current response to finish") }
         switch invocation.command {
+        case .thinking:
+            let levels = await session.getAvailableThinkingLevels()
+            let value: String
+            if invocation.argument.isEmpty {
+                let current = await session.thinkingLevel
+                guard let index = choose(levels.map { $0.rawValue + ($0 == current ? " · Current" : "") }) else { return true }
+                value = levels[index].rawValue
+            } else { value = invocation.argument }
+            let selected = try await host.selectThinking(value)
+            printLine("Thinking level: " + selected.rawValue)
+        case .tree, .fork:
+            let fork = invocation.command == .fork
+            let entries = host.navigationItems(forkOnly: fork)
+            guard let index = choose(entries.map { String(repeating: "  ", count: min($0.depth, 6)) + ($0.isCurrent ? "● " : "") + String($0.title.replacingOccurrences(of: "\n", with: " ").prefix(100)) + " · " + $0.detail }) else { return true }
+            let selected = entries[index]
+            if fork {
+                let result = try await host.fork(before: selected.id)
+                activeHost.withLock { $0 = result.host }; pendingDraft.withLock { $0 = result.text }
+                await host.shutdown()
+                printLine("Forked to new session. Edit the restored message before sending.")
+            } else {
+                if selected.isCurrent { printLine("Already at this point."); return true }
+                guard let summary = choose(["No summary", "Summarize", "Summarize with custom prompt"]) else { return true }
+                var instructions: String?
+                if summary == 2 {
+                    printLine("Summary instructions (empty cancels):")
+                    guard let input = read(), !input.isEmpty else { return true }
+                    instructions = input
+                }
+                let text = try await session.navigateTree(selected.id, summarize: summary > 0, customInstructions: instructions)
+                pendingDraft.withLock { $0 = text ?? "" }
+                printLine("Navigated to selected point.")
+            }
         case .quit: return false
         case .help:
             printLine(SlashCommand.allCases.map { "/" + $0.rawValue + " — " + $0.summary }.joined(separator: "\n"))

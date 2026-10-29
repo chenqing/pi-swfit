@@ -39,7 +39,8 @@ let package = Package(
 
         .target(name: "PiHost", dependencies: ["PiAI", "PiAgent", "PiCodingAgent"]),
         .testTarget(name: "PiHostTests", dependencies: ["PiHost", "PiChat"]),
-        .target(name: "PiCLI", dependencies: ["PiAI", "PiAgent", "PiCodingAgent", "PiHost"]),
+        .target(name: "PiLineEditor", linkerSettings: [.linkedLibrary("edit", .when(platforms: [.macOS]))]),
+        .target(name: "PiCLI", dependencies: ["PiAI", "PiAgent", "PiCodingAgent", "PiHost", "PiLineEditor"]),
         .executableTarget(name: "pf", dependencies: ["PiCLI"]),
         .testTarget(name: "PiCLITests", dependencies: ["PiCLI", "PiAI", "PiAgent"]),
         .target(name: "PiChat", dependencies: ["PiAI", "PiAgent", "PiCodingAgent", "PiHost"]),

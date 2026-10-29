@@ -66,12 +66,28 @@ public final class CodingSessionHost: Sendable {
         return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: current.options,
                                    projectTrusted: projectTrusted, connectionID: current.connectionID)
     }
+    /// Opens a separate leased fork before releasing the source. Failed opening leaves the source usable.
+    public func fork(before entryID: String) async throws -> (host: CodingSessionHost, text: String) {
+        guard session.isIdle else { throw PiError("Wait for the session to become idle") }
+        guard let entry = manager.getEntry(entryID), let text = sessionEntryEditorText(entry),
+              entry.messageEntry?.message.role == "user" else { throw PiError("Choose a user message") }
+        let fork = try manager.forkBefore(entryID)
+        var options = configuration.current.options
+        var initial = options.initialState ?? AgentInitialState()
+        initial.thinkingLevel = nil; options.initialState = initial
+        let next = try await Self.open(cwd: cwd, paths: paths, manager: fork, options: options,
+            projectTrusted: projectTrusted, connectionID: connectionID)
+        return (next, text)
+    }
+
     /// Opens another leased transcript before the caller releases its current host.
     public func resuming(file: String, profile: ConnectionProfile?, key: String?) async throws -> CodingSessionHost {
         guard FileManager.default.fileExists(atPath: file) else { throw PiError("Session file does not exist") }
         let manager = try SessionManager.open(file, self.manager.getSessionDir())
         guard manager.getHeader().map({ HostPaths.canonicalWorkspace($0.cwd) }) == cwd else { throw PiError("Session belongs to another workspace") }
         var options = configuration.current.options
+        var initial = options.initialState ?? AgentInitialState()
+        initial.thinkingLevel = nil; options.initialState = initial
         let connectionID: String?
         if let profile {
             var initial = options.initialState ?? AgentInitialState()
@@ -90,6 +106,7 @@ public final class CodingSessionHost: Sendable {
             // Persist before changing the live route. A failed write leaves the current route intact.
             _ = try manager.appendCustomEntry("pf.connection", .string(profile.id))
             agent.state.model = model
+            agent.state.thinkingLevel = clampThinkingLevel(model, agent.state.thinkingLevel)
             agent.getApiKey = { _ in key }
             configuration.withLock {
                 var initial = $0.options.initialState ?? AgentInitialState()

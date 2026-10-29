@@ -63,9 +63,21 @@ public func createAgentSession(_ options: CreateAgentSessionOptions) async throw
     let readTool = toolNames.contains("read") ? "read" : toolNames.contains("bash") ? "bash" : "indirect"
     let skillPrompt = formatSkillsForPrompt(skills.skills, fileReadTool: readTool)
     let manager = try options.sessionManager ?? SessionManager.inMemory(options.cwd)
-    let agent = try Agent(options.agentOptions)
+    var agentOptions = options.agentOptions
+    var restored = agentOptions.initialState ?? AgentInitialState()
+    if restored.thinkingLevel == nil, manager.getBranch().contains(where: { $0.type == "thinking_level_change" }) {
+        restored.thinkingLevel = ModelThinkingLevel(rawValue: manager.buildSessionContext().thinkingLevel)
+    }
+    if let model = restored.model, let level = restored.thinkingLevel {
+        restored.thinkingLevel = clampThinkingLevel(model, level)
+    }
+    agentOptions.initialState = restored
+    let agent = try Agent(agentOptions)
     if manager.getEntries().isEmpty {
         for message in await agent.state.messages { _ = try manager.appendMessage(message) }
+    }
+    if let level = restored.thinkingLevel, manager.buildSessionContext().thinkingLevel != level.rawValue {
+        try manager.appendThinkingLevelChange(level.rawValue)
     }
     // A restored transcript may advertise tools from disabled or removed extensions. Reconcile
     // against this host's executable base tools before extensions publish their current catalogs.

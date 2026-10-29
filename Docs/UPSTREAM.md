@@ -32,6 +32,10 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 - Local session recovery repair, compared with `session-manager.ts` at [`16f5f0af4`](https://github.com/earendil-works/pi/blob/16f5f0af4d85ca583d045ceb5ed6d646fcaf7761/packages/coding-agent/src/core/session-manager.ts): v1 migration now reserves each generated ID, and context projection stops when a parent ID repeats. This intentionally adds protection beyond that reference for colliding or malformed chains; well-formed session layout and v3 JSONL remain unchanged. A forced-collision test and self/two-node cycle regressions cover the repair.
 - MCP OAuth's default client display name is now `Pi Swift`; the extracted SDK no longer labels third-party login as Pagie.
 
+## Native navigation backport, 2026-10-29
+
+Reviewed `e65b3b88c08412bb8ffbd21fb5dc5756064a6e5a`: thinking-level mutation and event, tree target semantics and optional branch summaries, and fork-before-user-message behavior. Runtime persistence retains upstream entries; PiHost snapshots the source manager before forking so failed setup cannot replace the leased source. Desktop draft branch positions are native sidecar state. See [SLASH_COMMANDS.md](SLASH_COMMANDS.md) for verified behavior and unported selector/extension features.
+
 ## Capability matrix
 
 | Surface | Status |

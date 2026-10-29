@@ -1,6 +1,7 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
+import PiAI
 import PiHost
 import PiUI
 
@@ -12,6 +13,7 @@ struct ConnectionSheet: View {
     @State private var name = ""
     @State private var endpoint = "https://api.openai.com/v1"
     @State private var modelID = ""
+    @State private var thinkingLevels = ""
     @State private var apiKey = ""
     @State private var api = "openai-completions"
     @State private var cwd: String?
@@ -42,6 +44,9 @@ struct ConnectionSheet: View {
                 }
                 field("Base URL") { TextField("https://…", text: $endpoint).accessibilityLabel("Base URL") }
                 field("Model ID") { TextField("Your provider’s model ID", text: $modelID).accessibilityLabel("Model ID") }
+                field("Thinking levels · blank uses catalog capabilities") {
+                    TextField("off, minimal, low, medium, high", text: $thinkingLevels).accessibilityLabel("Supported thinking levels")
+                }
                 field(selectedID == "new" ? "API key" : "API key · leave blank to keep saved key") {
                     SecureField("API key", text: $apiKey).accessibilityLabel("API key")
                 }
@@ -94,8 +99,9 @@ struct ConnectionSheet: View {
         }
     }
     private func selectProfile() {
-        apiKey = ""; error = nil; notice = nil
+        apiKey = ""; thinkingLevels = ""; error = nil; notice = nil
         if let profile = profiles.first(where: { $0.id == selectedID }) {
+            thinkingLevels = profile.thinkingLevels?.map(\.rawValue).joined(separator: ", ") ?? ""
             name = profile.name; api = profile.api; endpoint = profile.endpoint; modelID = profile.modelID
         } else { name = ""; modelID = ""; api = "openai-completions"; endpoint = "https://api.openai.com/v1" }
     }
@@ -109,9 +115,12 @@ struct ConnectionSheet: View {
         saving = true; error = nil; defer { saving = false }
         let existing = profiles.first { $0.id == selectedID }
         let sameRoute = existing?.api == api && existing?.endpoint == endpoint
+        let values = thinkingLevels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let levels = values.compactMap(ModelThinkingLevel.init(rawValue:))
+        guard values.count == levels.count else { error = "Use off, minimal, low, medium, high, xhigh, or max, separated by commas."; return }
         let profile = ConnectionProfile(id: sameRoute ? selectedID : UUID().uuidString,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines), modelID: modelID.trimmingCharacters(in: .whitespacesAndNewlines),
-            api: api, endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines), provider: existing?.provider ?? "custom")
+            api: api, endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines), provider: existing?.provider ?? "custom", thinkingLevels: levels.isEmpty ? nil : levels)
         do {
             try await workspace.connect(profile: profile, key: apiKey.isEmpty ? nil : apiKey, cwd: cwd)
             apiKey = ""; dismiss()

@@ -17,7 +17,7 @@ public struct CLIArguments: Sendable {
     public var sessionDir: String?
     public var agentDir: String?
     public var systemPrompt: String?
-    public var thinking: ModelThinkingLevel = .off
+    public var thinking: ModelThinkingLevel?
     public var tools = ["read", "bash", "edit", "write"]
     public var messages: [String] = []
     public var help = false

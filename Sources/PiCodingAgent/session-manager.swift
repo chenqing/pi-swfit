@@ -2081,6 +2081,7 @@ public final class SessionManager: @unchecked Sendable {
             if let branchFromId, byId[branchFromId] == nil {
                 throw PiError("Entry \(branchFromId) not found")
             }
+            let previousLeaf = leafId
             let fromId = leafId ?? "root"
             leafId = branchFromId
             let entry = BranchSummaryEntry(
@@ -2093,8 +2094,26 @@ public final class SessionManager: @unchecked Sendable {
                 usage: usage,
                 fromHook: fromHook
             )
-            try _appendEntry(.branchSummary(entry))
+            do { try _appendEntry(.branchSummary(entry)) }
+            catch { leafId = previousLeaf; throw error }
             return entry.id
+        }
+    }
+
+    /// Swift host adaptation: fork a snapshot without moving or rewriting the source manager.
+    public func forkBefore(_ entryID: String) throws -> SessionManager {
+        try locked {
+            guard let entry = byId[entryID], case .message(let message) = entry,
+                  message.message.role == "user" else { throw PiError("Choose a user message to fork from") }
+            let copy = try SessionManager(cwd, sessionDir, nil, false, nil, fileEntries)
+            copy.persist = persist
+            copy.sessionFile = sessionFile
+            if let parent = entry.parentId {
+                try copy.createBranchedSession(parent)
+            } else {
+                try copy.newSession(NewSessionOptions(parentSession: sessionFile))
+            }
+            return copy
         }
     }
 

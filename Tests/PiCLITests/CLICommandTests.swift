@@ -78,4 +78,36 @@ struct CLICommandTests {
         await next.shutdown(); await host.shutdown()
     }
 }
+struct CLINavigationTests {
+    @Test func selectorsCancelLocallyAndForkRestoresEditableText() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = HostPaths(agentDir: root.appendingPathComponent("agent").path)
+        let model = Model(id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "https://example.invalid", reasoning: true)
+        let count = Locked(0)
+        let host = try await CodingSessionHost.open(cwd: root.path, paths: paths,
+            options: AgentOptions(initialState: AgentInitialState(model: model), streamFn: { _, _, _ in
+                count.withLock { $0 += 1 }
+                let stream = createAssistantMessageEventStream()
+                stream.push(.done(reason: .stop, message: AssistantMessage(content: [.text(TextContent(text: "reply"))], api: model.api, provider: model.provider, model: model.id)))
+                return stream
+            }))
+        try await host.session.prompt("edit me")
+        let inputs = Locked(["", "1"])
+        let controller = CLICommands(host: host, connections: ConnectionStore(paths: paths, credentials: NoCredentials()),
+            demo: false, printLine: { _ in }, read: { inputs.withLock { $0.isEmpty ? nil : $0.removeFirst() } })
+        _ = try await controller.execute(#require(SlashCommand.parse("/thinking high")))
+        #expect(await host.session.thinkingLevel == .high)
+        _ = try await controller.execute(#require(SlashCommand.parse("/fork")))
+        #expect(controller.activeHost.current === host)
+        _ = try await controller.execute(#require(SlashCommand.parse("/fork")))
+        #expect(controller.activeHost.current !== host)
+        #expect(controller.pendingDraft.current == "edit me")
+        #expect(await controller.activeHost.current.session.messages.filter { $0.role == "user" }.isEmpty)
+        #expect(count.current == 1)
+        await controller.activeHost.current.shutdown()
+    }
+}
+
 #endif

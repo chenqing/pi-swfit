@@ -67,10 +67,12 @@ public struct ConnectionProfile: Codable, Identifiable, Sendable, Equatable {
     public var api: String
     public var endpoint: String
     public var provider: String
+    /// Explicit capabilities for custom endpoints; nil uses an exact catalog match, otherwise off.
+    public var thinkingLevels: [ModelThinkingLevel]?
     public init(id: String = UUID().uuidString, name: String, modelID: String, api: String,
-                endpoint: String, provider: String = "custom") {
+                endpoint: String, provider: String = "custom", thinkingLevels: [ModelThinkingLevel]? = nil) {
         self.id = id; self.name = name; self.modelID = modelID; self.api = api
-        self.endpoint = endpoint; self.provider = provider
+        self.endpoint = endpoint; self.provider = provider; self.thinkingLevels = thinkingLevels
     }
     // Scope credentials to both identity and destination. Editing a profile file cannot redirect a saved key.
     public var credentialAccount: String {
@@ -89,8 +91,20 @@ public struct ConnectionProfile: Codable, Identifiable, Sendable, Equatable {
     }
     public func model() throws -> Model {
         try validate()
-        return Model(id: modelID, name: name, api: api, provider: provider, baseUrl: endpoint,
+        var model = createModels().getModel(provider, modelID)
+            ?? Model(id: modelID, name: name, api: api, provider: provider, baseUrl: endpoint,
                      input: ["text"], contextWindow: 128_000, maxTokens: 4096)
+        model.name = name; model.api = api; model.provider = provider; model.baseUrl = endpoint
+        if let thinkingLevels {
+            guard !thinkingLevels.isEmpty else { throw PiError("Thinking levels must include at least one level") }
+            model.reasoning = thinkingLevels.contains { $0 != .off }
+            var map: ThinkingLevelMap = [:]
+            for level in ModelThinkingLevel.allCases {
+                map[level] = .some(thinkingLevels.contains(level) ? level.rawValue : nil)
+            }
+            model.thinkingLevelMap = map
+        }
+        return model
     }
 }
 

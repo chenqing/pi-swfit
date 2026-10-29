@@ -9,8 +9,10 @@ import tempfile
 import threading
 
 root = Path(__file__).resolve().parents[1]
-bin_dir = subprocess.check_output(['swift', 'build', '--show-bin-path'], cwd=root, text=True).strip()
-pf = str(Path(bin_dir) / 'pf')
+pf = os.environ.get('PF_TEST_EXECUTABLE')
+if not pf:
+    bin_dir = subprocess.check_output(['swift', 'build', '--show-bin-path'], cwd=root, text=True).strip()
+    pf = str(Path(bin_dir) / 'pf')
 with tempfile.TemporaryDirectory(prefix='pf-smoke-') as temporary:
     directory = Path(temporary)
     fixture = directory / 'fixture.txt'

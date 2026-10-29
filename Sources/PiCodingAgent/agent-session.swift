@@ -84,7 +84,8 @@ public enum AgentSessionEvent: Sendable {
     case queueUpdate(steering: [String], followUp: [String])
     case compactionStart(reason: CompactionReason)
     case entryAppended(entry: SessionEntry)
-    // Not ported: session_info_changed, thinking_level_changed.
+    case thinkingLevelChanged(level: ModelThinkingLevel)
+    // Not ported: session_info_changed.
     case compactionEnd(reason: CompactionReason, result: CompactionResult?, aborted: Bool, willRetry: Bool, errorMessage: String?)
     case autoRetryStart(attempt: Int, maxAttempts: Int, delayMs: Int, errorMessage: String)
     case autoRetryEnd(success: Bool, attempt: Int, finalError: String?)
@@ -125,6 +126,7 @@ public enum AgentSessionEvent: Sendable {
         case .toolExecutionEnd: return "tool_execution_end"
         case .agentEnd: return "agent_end"
         case .agentSettled: return "agent_settled"
+        case .thinkingLevelChanged: return "thinking_level_changed"
         case .queueUpdate: return "queue_update"
         case .compactionStart: return "compaction_start"
         case .entryAppended: return "entry_appended"
@@ -1351,7 +1353,74 @@ public final class AgentSession: @unchecked Sendable {
     // Model Management
     // =========================================================================
 
-    // Not ported: setModel, cycleModel, setThinkingLevel, cycleThinkingLevel, queue mode setters.
+    // Not ported: setModel, cycleModel, cycleThinkingLevel, queue mode setters.
+
+    public func getAvailableThinkingLevels() async -> [ModelThinkingLevel] {
+        getSupportedThinkingLevels(await model)
+    }
+
+    public func setThinkingLevel(_ level: ModelThinkingLevel) async throws {
+        let boundary = try reserveIdleBoundary()
+        defer { releaseIdleBoundary(boundary) }
+        let effective = clampThinkingLevel(await model, level)
+        let changed = try await agent.update { agent -> Bool in
+            guard agent.state.thinkingLevel != effective else { return false }
+            try self.sessionManager.appendThinkingLevelChange(effective.rawValue)
+            agent.state.thinkingLevel = effective
+            return true
+        }
+        if changed { _emit(.thinkingLevelChanged(level: effective)) }
+    }
+
+    /// Upstream tree semantics: user/custom messages return to the editor, all other nodes
+    /// continue after the selected entry. Navigation never deletes the abandoned branch.
+    public func navigateTree(_ targetID: String, summarize: Bool = false,
+                             customInstructions: String? = nil) async throws -> String? {
+        let boundary = try reserveIdleBoundary()
+        defer { releaseIdleBoundary(boundary) }
+        let oldLeaf = sessionManager.getLeafId()
+        if oldLeaf == targetID { return nil }
+        guard let target = sessionManager.getEntry(targetID) else { throw PiError("Entry not found") }
+        if try await extensionRunner?.beforeSessionChange("tree") == false { throw PiError("Navigation cancelled") }
+        let controller = AbortController()
+        _state.withLock { $0.branchSummaryAbortController = controller }
+        defer { _state.withLock { $0.branchSummaryAbortController = nil } }
+        var summary: BranchSummaryResult?
+        if summarize {
+            let entries = collectEntriesForBranchSummary(sessionManager, oldLeaf, targetID).entries
+            if !entries.isEmpty {
+                let model = await self.model
+                let key = await agent.getApiKey
+                summary = try await generateBranchSummary(entries, .init(model: model,
+                    apiKey: await key?(model.provider), signal: controller.signal,
+                    customInstructions: customInstructions,
+                    reserveTokens: settingsManager.getBranchSummarySettings().reserveTokens,
+                    streamFn: await agent.streamFunction, retry: settingsManager.getRetrySettings(),
+                    callbacks: _summarizationRetryCallbacks(.branchSummary)))
+                if let error = summary?.error { throw PiError(error) }
+                if summary?.aborted == true { throw PiError("Branch summarization cancelled") }
+            }
+        }
+        try controller.signal.throwIfAborted()
+        guard sessionManager.getLeafId() == oldLeaf else { throw PiError("Session changed during navigation") }
+        let editorText = sessionEntryEditorText(target)
+        let newLeaf = editorText != nil ? target.parentId : targetID
+        if let text = summary?.summary {
+            try sessionManager.branchWithSummary(newLeaf, text,
+                BranchSummaryDetails(readFiles: summary?.readFiles ?? [], modifiedFiles: summary?.modifiedFiles ?? []).json,
+                false, summary?.usage)
+        } else if let newLeaf { try sessionManager.branch(newLeaf) }
+        else { sessionManager.resetLeaf() }
+        await _refreshFinalizedContext()
+        try await agent.update { agent in
+            let names = getCurrentTools(convertToLlm(self.sessionManager.buildSessionContext().messages)).map(\.name)
+            self.extensionTools.state.withLock { $0.activated = Set(names) }
+            try self._publishToolLoadout(agent)
+        }
+        nestedTools.clear(); _ = clearQueue()
+        await extensionRunner?.emitEvent(.sessionChanged(reason: "tree"))
+        return editorText
+    }
 
     // =========================================================================
     // Compaction

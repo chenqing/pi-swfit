@@ -17,6 +17,7 @@ public func jsonEvent(_ event: AgentSessionEvent) -> JsonValue? {
         return .object(object)
     }
     switch event {
+    case .thinkingLevelChanged(let level): return ["type": "thinking_level_changed", "level": .string(level.rawValue)]
     case .agentStart: return ["type": "agent_start"]
     case .agentEnd(let messages, let willRetry): return ["type": "agent_end", "messages": .array(messages.map(message)), "willRetry": .bool(willRetry)]
     case .agentSettled(let aborted): return ["type": "agent_settled", "aborted": .bool(aborted)]
