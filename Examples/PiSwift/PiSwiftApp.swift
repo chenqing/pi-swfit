@@ -19,7 +19,7 @@ struct PiSwiftApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var workspace: AppWorkspace?
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { await workspace?.shutdown(); sender.reply(toApplicationShouldTerminate: true) }
+        Task { sender.reply(toApplicationShouldTerminate: await workspace?.shutdown() ?? true) }
         return .terminateLater
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -99,6 +99,7 @@ struct AppView: View {
                 .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
                 .onChange(of: detailsFit) { showsCompactDetails = false }
                 .onChange(of: session?.sessionFile) { changeReader.close() }
+                .onChange(of: session?.draft) { workspace.scheduleDraftSave() }
                 .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
                 .sheet(item: $sheet) { destination in
                     Group {

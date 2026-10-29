@@ -15,9 +15,26 @@ final class AppWorkspace {
     let store = ConnectionStore()
     var profiles: [ConnectionProfile] = []
     var libraryRevision = 0
-    private var drafts: [String: String] = [:]
-    private func saveDraft() {
-        if let session, let file = session.sessionFile { drafts[file] = session.draft }
+    @ObservationIgnored private var draftSaveTask: Task<Void, Never>?
+    private var drafts: ConversationDraftStore { ConversationDraftStore(paths: store.paths) }
+    private func saveDraft() throws {
+        draftSaveTask?.cancel(); draftSaveTask = nil
+        if let session, let file = session.sessionFile { try drafts.save(session.draft, for: file) }
+    }
+    func scheduleDraftSave() {
+        draftSaveTask?.cancel()
+        // Sending or explicitly clearing input must immediately remove the saved draft.
+        if session?.draft.isEmpty == true {
+            do { try saveDraft() } catch { self.error = "Could not save the draft: \(error)" }
+            return
+        }
+        draftSaveTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(400))
+                guard let self else { return }
+                try self.saveDraft()
+            } catch is CancellationError {} catch { self?.error = "Could not save the draft: \(error)" }
+        }
     }
     func renameCurrent(_ title: String) throws {
         try session?.rename(title); libraryRevision += 1
@@ -52,7 +69,14 @@ final class AppWorkspace {
                let profile = try store.load().profile(bookmark.connectionID) {
                 let file = bookmark.sessionFile.flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
                 let restored = try await ChatSession.openCoding(cwd: bookmark.cwd, profile: profile, store: store, sessionFile: file)
-                await replace(restored, profile: profile)
+                try await replace(restored, profile: profile, draftFile: bookmark.sessionFile)
+                // A blank session has no JSONL yet. Save under its new identity before
+                // advancing the bookmark, then retire the old draft only after both succeed.
+                if file == nil, let previous = bookmark.sessionFile, let current = restored.sessionFile, previous != current {
+                    try saveDraft()
+                    try persistWorkspace()
+                    try drafts.save("", for: previous)
+                }
             } else { await demo(.tool) }
         } catch {
             await demo(.tool, clearError: false)
@@ -66,7 +90,7 @@ final class AppWorkspace {
         try await Task.detached { try store.save(profile, apiKey: key) }.value
         try refreshProfiles()
         let next = try await ChatSession.openCoding(cwd: cwd, profile: profile, store: store)
-        await replace(next, profile: profile)
+        try await replace(next, profile: profile)
         remember()
     }
     func refreshProfiles() throws { profiles = try store.load().profiles.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
@@ -94,8 +118,9 @@ final class AppWorkspace {
             // Finish the new-session operation before hiding the current conversation.
             if archived, session?.sessionFile == info.path {
                 let draft = session?.draft ?? ""
-                saveDraft()
+                try saveDraft()
                 try await session?.reset(); session?.draft = draft; remember()
+                try saveDraft()
             }
             try library.update(info.path, archived: archived); libraryRevision += 1
         } catch { self.error = String(describing: error) }
@@ -108,34 +133,47 @@ final class AppWorkspace {
         guard let id = CodingSessionHost.savedConnectionID(manager) else { throw PiError("This session has no saved connection. Open it with pf --connection NAME --session PATH first.") }
         guard let selected = try store.load().profile(id) else { throw PiError("Connect a model before opening this session") }
         let next = try await ChatSession.openCoding(cwd: info.cwd, profile: selected, store: store, sessionFile: info.path)
-        await replace(next, profile: selected)
+        try await replace(next, profile: selected)
         remember()
     }
     func newConversation() async {
         guard !busy, session?.isRunning != true else { return }
         busy = true; defer { busy = false }
-        do { saveDraft(); try await session?.reset(); remember() }
+        do { try saveDraft(); try await session?.reset(); remember() }
         catch { self.error = String(describing: error) }
     }
     func demo(_ scenario: DemoScenario, clearError: Bool = true) async {
         guard session?.isRunning != true else { return }
         do {
             let next = try makeDemoSession(scenario: scenario)
-            await replace(next, profile: nil)
+            try await replace(next, profile: nil)
             connection = "Offline demo · \(scenario.rawValue)"
             if clearError { error = nil }
         } catch { self.error = String(describing: error) }
     }
     func remember() {
-        guard let session, let cwd = session.workspace, let id = session.connectionID else { return }
-        do { try WorkspaceBookmark(cwd: cwd, connectionID: id, sessionFile: session.sessionFile).save(paths: store.paths) }
+        do { try persistWorkspace() }
         catch { self.error = "Could not save the last workspace: \(error)" }
     }
-    func shutdown() async { remember(); await session?.shutdown() }
-    private func replace(_ next: ChatSession, profile: ConnectionProfile?) async {
-        saveDraft()
+    private func persistWorkspace() throws {
+        guard let session, let cwd = session.workspace, let id = session.connectionID else { return }
+        try WorkspaceBookmark(cwd: cwd, connectionID: id, sessionFile: session.sessionFile).save(paths: store.paths)
+    }
+    func shutdown() async -> Bool {
+        do { try saveDraft(); try persistWorkspace() }
+        catch { self.error = "Could not save before quitting: \(error)"; return false }
+        await session?.shutdown()
+        return true
+    }
+    private func replace(_ next: ChatSession, profile: ConnectionProfile?, draftFile: String? = nil) async throws {
+        do {
+            try saveDraft()
+            if let file = draftFile ?? next.sessionFile { next.draft = try drafts.load(for: file) }
+        } catch {
+            await next.shutdown()
+            throw error
+        }
         let old = session
-        if let file = next.sessionFile { next.draft = drafts[file] ?? "" }
         session = next; self.profile = profile; connection = profile?.name ?? "Offline demo"; error = nil
         await old?.shutdown()
     }

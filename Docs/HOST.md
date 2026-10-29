@@ -9,8 +9,11 @@ Default root: `~/.pf/agent`, overridden by `PF_AGENT_DIR` / CLI `--agent-dir`.
 - `connections.json`: profile IDs, labels, model IDs, API formats, endpoints and default selection. No API keys.
 - Login Keychain service `dev.chenqing.pi-swift.connections`: per-connection API keys. The account is a hash of profile ID and routing destination. Changing routing requires a new profile identity. Keychain writes and reads can require macOS authorization.
 - `sessions/<workspace-hash>/*.jsonl`: upstream-format session entries. The workspace hash is the first 12 SHA-256 bytes of the canonical absolute folder path. Workspace directories are owner-only. Original messages and tool-result diffs are stored here, so treat these files as private project data.
-- `playground.json`: last workspace, connection ID and session path. Drafts and pending approvals are not persisted.
+- `playground.json`: last workspace, connection ID and session path. Pending approvals are not resumed.
+- `drafts/<session-path-hash>.json`: desktop draft text, separate from JSONL and never inserted into model context on restore. Files are written atomically with owner-only permissions; they are local plain text, not encrypted storage. A cleared/submitted draft removes its saved text. Empty draft lock files can remain. Unsent current conversations use the bookmark to restore a draft even before a transcript exists.
 - `*.lock`: advisory locks held by an open host. Empty lock files may remain after exit; the operating system releases ownership when the process ends. Upstream Pi and third-party readers that do not use this host do not honor these locks.
+
+Sessions use the ported Pi v3 JSONL structure: a session header followed by entries linked by `id`/`parentId`. A new transcript is first written when a user or assistant message exists; opening an empty conversation alone does not create JSONL. Later entries append, and restoration builds the selected branch without executing past tools. This aligns with the reviewed upstream snapshot, not a guarantee of arbitrary latest-upstream extension interoperability.
 
 A `pf.connection` custom session entry records the selected profile ID without injecting it into model context. Explicit CLI model routing clears that association; to resume that session in Pi Swift, first associate a saved connection through `pf --connection NAME --session PATH`.
 
