@@ -44,6 +44,20 @@ private let assistantJson: JsonValue = [
         #expect(msg2.parentId == msg1.id)
     }
 
+    @Test("migration reserves generated IDs before the next collision check") func reservesGeneratedIDs() throws {
+        var entries = (0..<4).map { index in
+            FileEntry(object: ["type": "message", "timestamp": "2025-01-01T00:00:00Z",
+                               "message": ["role": "user", "content": .string("Message \(index)"), "timestamp": 1]])
+        }
+        migrateV1ToV2(&entries) { has in
+            ["same-id", "next-id", "third-id", "last-id"].first { !has($0) }!
+        }
+        let messages = entries.compactMap(\.sessionEntry)
+        #expect(messages.map(\.id) == ["same-id", "next-id", "third-id", "last-id"])
+        #expect(messages.map(\.parentId) == [nil, "same-id", "next-id", "third-id"])
+        #expect(buildSessionContext(messages).messages.count == 4)
+    }
+
     @Test("should be idempotent (skip already migrated)") func idempotent() throws {
         var entries: [FileEntry] = [
             FileEntry(object: ["type": "session", "id": "sess-1", "version": 2, "timestamp": "2025-01-01T00:00:00Z", "cwd": "/tmp"]),

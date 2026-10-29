@@ -652,8 +652,9 @@ private func generateId(_ has: (String) -> Bool) -> String {
 }
 
 /** Migrate v1 → v2: add id/parentId tree structure. Mutates in place. */
-private func migrateV1ToV2(_ entries: inout [FileEntry]) {
-    let ids = Set<String>()
+// Swift: an injectable ID source keeps collision recovery deterministic in tests.
+func migrateV1ToV2(_ entries: inout [FileEntry], generate: ((String) -> Bool) -> String = generateId) {
+    var ids = Set<String>()
     var prevId: String?
 
     for index in entries.indices {
@@ -664,7 +665,8 @@ private func migrateV1ToV2(_ entries: inout [FileEntry]) {
         }
         guard case .entry(var entry) = entries[index] else { continue }
 
-        entry.id = generateId { ids.contains($0) }
+        entry.id = generate { ids.contains($0) }
+        ids.insert(entry.id)
         entry.parentId = prevId
         prevId = entry.id
 
@@ -777,8 +779,10 @@ private func buildSessionPath(
     }
 
     var path: [SessionEntry] = []
+    var visited = Set<String>()
     var current: SessionEntry? = leaf
-    while let entry = current {
+    // Swift: a malformed/colliding parent chain must never hang session restoration.
+    while let entry = current, visited.insert(entry.id).inserted {
         path.append(entry)
         current = entry.parentId.flatMap { $0.isEmpty ? nil : index[$0] }
     }

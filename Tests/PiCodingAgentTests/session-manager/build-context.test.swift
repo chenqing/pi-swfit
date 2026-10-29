@@ -48,6 +48,13 @@ private func modelChange(_ id: String, _ parentId: String?, _ provider: String, 
 }
 
 @Suite("buildSessionContext") struct BuildSessionContextTests {
+    @Test("cyclic parent links terminate without repeating messages") func cyclicParents() {
+        let selfCycle = buildSessionContext([msg("a", "a", "user", "hello")])
+        #expect(selfCycle.messages.count == 1)
+        let cycle = [msg("a", "b", "user", "hello"), msg("b", "a", "assistant", "reply")]
+        #expect(buildSessionContext(cycle).messages.map(\.role) == ["user", "assistant"])
+    }
+
     // MARK: trivial cases
 
     @Test("empty entries returns empty context") func emptyEntries() {

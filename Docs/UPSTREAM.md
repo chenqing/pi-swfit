@@ -29,6 +29,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 - Restored manual compaction cancellation wording to `Compaction cancelled` at the post-summary boundary, matching the reviewed upstream `agent-session.ts`. Two existing cancellation characterization tests now pass unchanged.
 - Native SDK client filenames use `OpenAIClient.swift` and `AnthropicClient.swift` to avoid case-insensitive object-file collisions with provider filenames on Swift 6.3 builds. Public type names remain unchanged.
 - Swift platform repair: ChatGPT OAuth waits for Network.framework listener cancellation before returning, so an immediate next login can reuse the callback port. A regression repeatedly closes and rebinds the same loopback port.
+- Local session recovery repair, compared with `session-manager.ts` at [`16f5f0af4`](https://github.com/earendil-works/pi/blob/16f5f0af4d85ca583d045ceb5ed6d646fcaf7761/packages/coding-agent/src/core/session-manager.ts): v1 migration now reserves each generated ID, and context projection stops when a parent ID repeats. This intentionally adds protection beyond that reference for colliding or malformed chains; well-formed session layout and v3 JSONL remain unchanged. A forced-collision test and self/two-node cycle regressions cover the repair.
 - MCP OAuth's default client display name is now `Pi Swift`; the extracted SDK no longer labels third-party login as Pagie.
 
 ## Capability matrix
