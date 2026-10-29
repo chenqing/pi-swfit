@@ -110,4 +110,35 @@ struct CLINavigationTests {
     }
 }
 
+struct CLIResourceCommandTests {
+    @Test func helpAndReloadUseActiveResourcesAndNativeExtensions() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let prompts = root.appendingPathComponent("agent/prompts")
+        try FileManager.default.createDirectory(at: prompts, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = HostPaths(agentDir: root.appendingPathComponent("agent").path)
+        let calls = Locked(0), reloads = Locked(0)
+        let ext = NativeExtension(id: "fixture", onEvent: { event, _ in
+            if case .resourcesReloaded = event { reloads.withLock { $0 += 1 } }
+        }, commands: [.init(name: "native", description: "Native command", execute: { _, _ in calls.withLock { $0 += 1 } })])
+        let host = try await CodingSessionHost.open(cwd: root.path, paths: paths, options: AgentOptions(), extensions: [ext])
+        let output = Locked<[String]>([])
+        let controller = CLICommands(host: host, connections: ConnectionStore(paths: paths, credentials: NoCredentials()),
+            demo: true, printLine: { text in output.withLock { $0.append(text) } }, read: { nil })
+        try "Template body".write(to: prompts.appendingPathComponent("added.md"), atomically: true, encoding: .utf8)
+        _ = try await controller.execute(#require(SlashCommand.parse("/reload")))
+        _ = try await controller.execute(#require(SlashCommand.parse("/help")))
+        #expect(output.current.joined().contains("/added"))
+        #expect(output.current.joined().contains("/native"))
+        #expect(reloads.current == 1)
+        let catalog = controller.activeHost.current.commandCatalog(includeQuit: true)
+        #expect(try SlashCommand.parse("/native", catalog: catalog) == nil)
+        let entries = host.manager.getEntries().count
+        try await controller.activeHost.current.session.prompt("/native")
+        #expect(calls.current == 1)
+        #expect(host.manager.getEntries().count == entries)
+        await host.shutdown()
+    }
+}
+
 #endif

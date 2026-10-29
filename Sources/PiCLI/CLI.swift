@@ -45,13 +45,13 @@ public enum PFCLI {
     Use --no-tools for chat-only use. See Docs/CLI.md for the compatibility matrix.
     """
 
-    public static func run(_ arguments: [String]) async -> Int32 {
+    public static func run(_ arguments: [String], extensions: [NativeExtension] = []) async -> Int32 {
         do {
             let args = try CLIArguments(arguments)
             if args.help { output(help + "\n"); return 0 }
             if args.version { output("pf \(version)\n"); return 0 }
             #if os(macOS)
-            return try await execute(args)
+            return try await execute(args, extensions: extensions)
             #else
             throw PiError("pf currently requires macOS")
             #endif
@@ -61,7 +61,7 @@ public enum PFCLI {
     }
 
     #if os(macOS)
-    private static func execute(_ args: CLIArguments) async throws -> Int32 {
+    private static func execute(_ args: CLIArguments, extensions: [NativeExtension]) async throws -> Int32 {
         let cwd = HostPaths.canonicalWorkspace(FileManager.default.currentDirectoryPath)
         let env = ProcessInfo.processInfo.environment
         // SecItem authentication contexts do not suppress all legacy login-Keychain ACL dialogs.
@@ -126,7 +126,7 @@ public enum PFCLI {
         let options = AgentOptions(initialState: AgentInitialState(
             systemPrompt: args.systemPrompt ?? codingSystemPrompt(cwd: cwd),
             model: model, thinkingLevel: args.thinking, tools: tools), streamFn: stream, getApiKey: { _ in savedKey })
-        let host = try await CodingSessionHost.open(cwd: cwd, paths: paths, manager: manager, options: options, projectTrusted: args.trustProject, connectionID: profile?.id)
+        let host = try await CodingSessionHost.open(cwd: cwd, paths: paths, manager: manager, options: options, projectTrusted: args.trustProject ? true : nil, connectionID: profile?.id, extensions: extensions)
         let commands = CLICommands(host: host, connections: connections, demo: args.demo, printLine: { diagnostic($0 + "\n") })
         let activeHost = commands.activeHost
         for warning in host.diagnostics { diagnostic("pf: \(warning.message)\n") }
@@ -151,7 +151,16 @@ public enum PFCLI {
         func prompt(_ text: String) async throws {
             runFailed.withLock { $0 = false }
             let session = activeHost.current.session
-            try await session.prompt(text)
+            let disposition = Locked<PromptDisposition?>(nil)
+            do {
+                try await session.prompt(text, .init(preflightResult: { result in disposition.withLock { $0 = result } }))
+            } catch {
+                if interactive, disposition.current == nil {
+                    commands.pendingDraft.withLock { $0 = text }
+                }
+                throw error
+            }
+            if disposition.current == .handled { return }
             let last = await session.messages.reversed().compactMap { if case .assistant(let m) = $0 { return m }; return nil }.first
             runFailed.withLock { $0 = last?.stopReason == .error }
             if args.mode != "json" {
@@ -167,13 +176,14 @@ public enum PFCLI {
                     let draft = commands.pendingDraft.withLock { value -> String in
                         let draft = value; value = ""; return draft
                     }
-                    guard let buffer = pf_readline("\npf › ", draft) else { break }
+                    let completionNames = activeHost.current.commandCatalog(includeQuit: true).map { "/" + $0.name }.joined(separator: "\n")
+                    guard let buffer = pf_readline("\npf › ", draft, completionNames) else { break }
                     let line = String(cString: buffer).replacingOccurrences(of: "\r\n", with: "\n")
                         .replacingOccurrences(of: "\r", with: "\n")
                     free(buffer)
                     if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
                     do {
-                        if let invocation = try SlashCommand.parse(line) {
+                        if let invocation = try SlashCommand.parse(line, catalog: activeHost.current.commandCatalog(includeQuit: true)) {
                             let previous = activeHost.current
                             guard try await commands.execute(invocation) else { break }
                             if activeHost.current !== previous {

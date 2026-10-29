@@ -53,6 +53,9 @@ jobs:
       - name: CLI integration (offline fixtures)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: python3 scripts/smoke-cli.py
+      - name: Resource slash commands (offline PTY)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/smoke-slash-resources.py
       - name: Build release CLI
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: swift build -c release --product pf

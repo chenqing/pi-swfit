@@ -64,3 +64,7 @@ This compares ten selected upstream source blobs with the reviewed snapshot, exi
 ## Verification
 
 Use `swift test` for runtime/host regressions and `python3 scripts/smoke-cli.py` for CLI integration. See `VALIDATION.md` for the current release evidence. Historical official MCP conformance results in `Conformance/` retain their known failures and date; they were not re-certified as part of this extraction.
+
+## Resource slash backport, 2026-10-29
+
+Reviewed `aee933269ba79b84e7b7454097c1d4c426021d82`: prompt-template parsing/substitution, explicit skills, command precedence and extension invocation-name disambiguation. Desktop and pf share discovery/help/completion and native reload. This does not load TypeScript/npm extensions or replicate extension argument completion. See [SLASH_COMMANDS.md](SLASH_COMMANDS.md#phase-3-resource-commands) for source, usage, trust and native boundaries.

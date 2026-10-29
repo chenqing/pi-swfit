@@ -27,6 +27,7 @@ public final class ChatSession {
     public private(set) var name: String?
     public private(set) var isChangingConnection = false
     public var draft = ""
+    public private(set) var commands = CommandDescriptor.builtins()
     public let approvals: ApprovalCenter
     public var permissionMode: ChatPermissionMode { approvals.permissionMode }
     public var canSelectPermissionMode: Bool { managesApprovals && !isRunning && !isChangingConnection && approvals.pending.isEmpty }
@@ -79,7 +80,9 @@ public final class ChatSession {
         guard !input.isEmpty, !isRunning, !isChangingConnection else { return }
         draft = ""; error = nil; state = .running; active = true; assistantID = nil
         approvals.reset()
-        messages.append(ChatMessage(role: .user, text: input))
+        let pendingUser = ChatMessage(role: .user, text: input)
+        messages.append(pendingUser)
+        let disposition = Locked<PromptDisposition?>(nil)
         let unsubscribe = agent.subscribe { [weak self] event, _ in await self?.receive(event) }
         defer {
             unsubscribe(); approvals.cancelAll()
@@ -90,7 +93,9 @@ public final class ChatSession {
         }
         await withTaskCancellationHandler {
             do {
-                if let codingHost { try await codingHost.session.prompt(input) }
+                if let codingHost {
+                    try await codingHost.session.prompt(input, .init(preflightResult: { result in disposition.withLock { $0 = result } }))
+                }
                 else { try await agent.prompt(input) }
             } catch {
                 if state == .stopping || Task.isCancelled { state = .cancelled }
@@ -99,6 +104,10 @@ public final class ChatSession {
         } onCancel: { [agent, codingHost] in
             agent.abort()
             if let codingHost { Task { await codingHost.session.abort() } }
+        }
+        if codingHost != nil, disposition.current == nil || disposition.current == .handled {
+            messages.removeAll { $0.id == pendingUser.id }
+            if error != nil, draft.isEmpty { draft = input }
         }
         if Task.isCancelled { state = .cancelled }
     }
@@ -116,7 +125,7 @@ public final class ChatSession {
         guard !isRunning, !isChangingConnection else { return }
         if let old = codingHost {
             let next = try await old.newConversation()
-            codingHost = next; agent = next.session.agent
+            codingHost = next; agent = next.session.agent; commands = next.commandCatalog()
             await old.shutdown()
         } else { try await agent.reset() }
         messages = []; draft = ""; error = nil; state = .idle; assistantID = nil; name = nil
@@ -126,7 +135,8 @@ public final class ChatSession {
 
     /// Opens a persistent coding session in Manual mode, with workspace reads approved.
     public static func openCoding(cwd inputCwd: String, profile: ConnectionProfile, store: ConnectionStore,
-                                  sessionFile: String? = nil, streamFn: StreamFn? = nil) async throws -> ChatSession {
+                                  sessionFile: String? = nil, streamFn: StreamFn? = nil, projectTrusted: Bool? = nil,
+                                  extensions: [NativeExtension] = []) async throws -> ChatSession {
         let cwd = HostPaths.canonicalWorkspace(inputCwd)
         let center = ApprovalCenter()
         let manager: SessionManager
@@ -156,8 +166,9 @@ public final class ChatSession {
             return nil
         }
         let host = try await CodingSessionHost.open(cwd: cwd, paths: store.paths, manager: manager,
-                                                    options: options, connectionID: profile.id)
+                                                    options: options, projectTrusted: projectTrusted, connectionID: profile.id, extensions: extensions)
         let result = ChatSession(host: host, approvals: center, state: await host.session.agent.state)
+        result.commands = host.commandCatalog()
         result.restore(host.manager.buildSessionContext().messages)
         return result
     }
@@ -189,6 +200,13 @@ public final class ChatSession {
         }
     }
 
+    public func reloadResources() async throws -> [String] {
+        guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Open an idle workspace to reload resources") }
+        isChangingConnection = true; defer { isChangingConnection = false; commands = host.commandCatalog() }
+        try await host.session.reloadResources()
+        return host.resourceDiagnostics().map { $0.message }
+    }
+
     public func thinkingOptions() async throws -> (levels: [ModelThinkingLevel], current: ModelThinkingLevel) {
         guard let host = codingHost else { throw PiError("Open a workspace to choose thinking") }
         return (await host.session.getAvailableThinkingLevels(), await host.session.thinkingLevel)
@@ -213,7 +231,7 @@ public final class ChatSession {
         let text: String?
         if fork {
             let result = try await host.fork(before: id)
-            codingHost = result.host; agent = result.host.session.agent; text = result.text
+            codingHost = result.host; agent = result.host.session.agent; commands = result.host.commandCatalog(); text = result.text
             await host.shutdown()
             approvals.reset(); approvals.permissionMode = .manual
         } else {

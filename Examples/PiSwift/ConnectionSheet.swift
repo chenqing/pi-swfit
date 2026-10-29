@@ -20,6 +20,7 @@ struct ConnectionSheet: View {
     @State private var error: String?
     @State private var notice: String?
     @State private var saving = false
+    @State private var trustProject = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Model & workspace").font(.title2.weight(.semibold))
@@ -31,36 +32,40 @@ struct ConnectionSheet: View {
                     ForEach(profiles) { Text($0.name).tag($0.id) }
                 }.onChange(of: selectedID) { selectProfile() }
             }
-            VStack(alignment: .leading, spacing: 12) {
-                field("Name") { TextField("My model", text: $name).accessibilityLabel("Connection name") }
-                Picker("API format", selection: $api) {
-                    Text("OpenAI compatible").tag("openai-completions")
-                    Text("OpenAI Responses").tag("openai-responses")
-                    Text("Anthropic Messages").tag("anthropic-messages")
-                }.onChange(of: api) {
-                    if ["https://api.openai.com/v1", "https://api.anthropic.com"].contains(endpoint) {
-                        endpoint = api == "anthropic-messages" ? "https://api.anthropic.com" : "https://api.openai.com/v1"
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    field("Name") { TextField("My model", text: $name).accessibilityLabel("Connection name") }
+                    Picker("API format", selection: $api) {
+                        Text("OpenAI compatible").tag("openai-completions")
+                        Text("OpenAI Responses").tag("openai-responses")
+                        Text("Anthropic Messages").tag("anthropic-messages")
+                    }.onChange(of: api) {
+                        if ["https://api.openai.com/v1", "https://api.anthropic.com"].contains(endpoint) {
+                            endpoint = api == "anthropic-messages" ? "https://api.anthropic.com" : "https://api.openai.com/v1"
+                        }
                     }
-                }
-                field("Base URL") { TextField("https://…", text: $endpoint).accessibilityLabel("Base URL") }
-                field("Model ID") { TextField("Your provider’s model ID", text: $modelID).accessibilityLabel("Model ID") }
-                field("Thinking levels · blank uses catalog capabilities") {
-                    TextField("off, minimal, low, medium, high", text: $thinkingLevels).accessibilityLabel("Supported thinking levels")
-                }
-                field(selectedID == "new" ? "API key" : "API key · leave blank to keep saved key") {
-                    SecureField("API key", text: $apiKey).accessibilityLabel("API key")
-                }
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Workspace").font(.caption).foregroundStyle(.secondary)
-                        Text(cwd ?? "Choose a folder for coding tools").font(.callout).lineLimit(1).truncationMode(.middle).help(cwd ?? "")
+                    field("Base URL") { TextField("https://…", text: $endpoint).accessibilityLabel("Base URL") }
+                    field("Model ID") { TextField("Your provider’s model ID", text: $modelID).accessibilityLabel("Model ID") }
+                    field("Thinking levels · blank uses catalog capabilities") {
+                        TextField("off, minimal, low, medium, high", text: $thinkingLevels).accessibilityLabel("Supported thinking levels")
                     }
-                    Spacer()
-                    Button("Choose folder…", action: chooseFolder).buttonStyle(ChatButtonStyle())
-                }.padding(.top, 4)
-                Text("Each tool call asks for approval. File changes include a preview.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+                    field(selectedID == "new" ? "API key" : "API key · leave blank to keep saved key") {
+                        SecureField("API key", text: $apiKey).accessibilityLabel("API key")
+                    }
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Workspace").font(.caption).foregroundStyle(.secondary)
+                            Text(cwd ?? "Choose a folder for coding tools").font(.callout).lineLimit(1).truncationMode(.middle).help(cwd ?? "")
+                        }
+                        Spacer()
+                        Button("Choose folder…", action: chooseFolder).buttonStyle(ChatButtonStyle())
+                    }.padding(.top, 4)
+                    Toggle("Load project skills, templates and settings", isOn: $trustProject)
+                        .font(.callout).disabled(cwd == nil)
+                    Text("Enable only for folders you trust. This does not change tool approval permissions.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }.frame(maxHeight: 380)
             if let error { Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
             if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
             HStack {
@@ -85,6 +90,7 @@ struct ConnectionSheet: View {
         }.padding(28).frame(width: 460).disabled(saving).interactiveDismissDisabled(saving)
             .task {
                 cwd = workspace.cwd
+                if let cwd { trustProject = (try? WorkspaceResourceTrust(paths: workspace.store.paths).contains(cwd)) ?? false }
                 do {
                     let catalog = try workspace.store.load(); profiles = catalog.profiles
                     selectedID = workspace.profile?.id ?? catalog.defaultID ?? "new"
@@ -108,7 +114,10 @@ struct ConnectionSheet: View {
     private func chooseFolder() {
         let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false; panel.prompt = "Use workspace"
-        if panel.runModal() == .OK { cwd = panel.url?.standardizedFileURL.path }
+        if panel.runModal() == .OK {
+            cwd = panel.url?.standardizedFileURL.path
+            trustProject = cwd.map { (try? WorkspaceResourceTrust(paths: workspace.store.paths).contains($0)) ?? false } ?? false
+        }
     }
     private func connect() async {
         guard let cwd else { return }
@@ -122,6 +131,7 @@ struct ConnectionSheet: View {
             name: name.trimmingCharacters(in: .whitespacesAndNewlines), modelID: modelID.trimmingCharacters(in: .whitespacesAndNewlines),
             api: api, endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines), provider: existing?.provider ?? "custom", thinkingLevels: levels.isEmpty ? nil : levels)
         do {
+            try WorkspaceResourceTrust(paths: workspace.store.paths).set(cwd, trusted: trustProject)
             try await workspace.connect(profile: profile, key: apiKey.isEmpty ? nil : apiKey, cwd: cwd)
             apiKey = ""; dismiss()
         } catch { self.error = String(describing: error) }

@@ -144,3 +144,7 @@ retries, timeouts, SSE parsing, error classes and their exact message text) into
 Port the upstream unit tests that exercise the ported file (`packages/*/test/...`) to Swift
 Testing (`import Testing`) under `Tests/<Target>Tests/`, same file names. Tests that need the
 network or a real provider key are skipped. Use fake `FetchFunction`s that replay SSE bytes.
+
+## Resource commands — 2026-10-29
+
+Selectively ported prompt templates and duplicate extension invocation names from `aee933269ba79b84e7b7454097c1d4c426021d82`. PiHost now supplies a shared dynamic slash catalog to desktop and pf; the existing skills/native Swift callback runtime remains the executor. See Docs/SLASH_COMMANDS.md Phase 3 for implemented behavior and deferred TypeScript/TUI surfaces. Historical prompt-template exclusions above predate this backport.

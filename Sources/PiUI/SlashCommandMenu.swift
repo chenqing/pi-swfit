@@ -2,9 +2,9 @@ import SwiftUI
 import PiHost
 
 struct SlashCommandMenu: View {
-    let commands: [SlashCommand]
+    let commands: [CommandDescriptor]
     let selected: Int
-    let choose: (SlashCommand) -> Void
+    let choose: (CommandDescriptor) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
@@ -18,18 +18,21 @@ struct SlashCommandMenu: View {
                         ForEach(Array(commands.enumerated()), id: \.element.id) { index, command in
                             Button { choose(command) } label: {
                                 HStack(spacing: 12) {
-                                    Text("/" + command.rawValue).font(.system(size: 12, weight: .medium, design: .monospaced)).frame(width: 84, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("/" + command.name).font(.system(size: 12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                                        Text(command.source.rawValue).font(.system(size: 9)).foregroundStyle(.tertiary)
+                                    }.frame(width: 150, alignment: .leading)
                                     Text(command.summary).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
                                     Spacer(minLength: 0)
                                 }.padding(.horizontal, 10).padding(.vertical, 7)
                                     .background(index == selected ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 6))
                                     .contentShape(Rectangle())
-                            }.buttonStyle(.plain).id(command.id)
-                                .accessibilityLabel("/\(command.rawValue), \(command.summary)")
+                            }.buttonStyle(.plain).id(command.id).help(command.location ?? command.summary)
+                                .accessibilityLabel("/\(command.name), \(command.summary)")
                                 .accessibilityValue(index == selected ? "Selected" : "")
                         }
                     }
-                }.frame(height: CGFloat(min(commands.count, 5)) * 38)
+                }.frame(height: CGFloat(min(commands.count, 5)) * 46)
                     .onChange(of: selected) { if commands.indices.contains(selected) { proxy.scrollTo(commands[selected].id) } }
             }
         }.padding(5).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))

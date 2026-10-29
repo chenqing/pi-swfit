@@ -4,7 +4,7 @@ import PiCodingAgent
 
 /// Native host commands. Names follow upstream; presentation belongs to each host.
 public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
-    case new, resume, name, model, thinking, tree, fork, settings, compact, session, copy, help, quit
+    case new, resume, name, model, thinking, tree, fork, settings, compact, session, copy, reload, help, quit
     public var id: String { rawValue }
     public var summary: String {
         switch self {
@@ -21,6 +21,7 @@ public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
         case .copy: "Copy the last assistant response"
         case .help: "Show available commands"
         case .quit: "Quit pf"
+        case .reload: "Reload skills, templates and native extension resources"
         }
     }
     public var argumentHint: String? {
@@ -38,14 +39,17 @@ public enum SlashCommand: String, CaseIterable, Sendable, Identifiable {
     }
     /// nil is ordinary prose (including absolute paths containing another slash).
     /// An unknown command fails locally rather than becoming a model request.
-    public static func parse(_ input: String) throws -> Invocation? {
+    public static func parse(_ input: String, catalog: [CommandDescriptor] = []) throws -> Invocation? {
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard value.hasPrefix("/"), !value.hasPrefix("//") else { return nil }
         let parts = value.dropFirst().split(maxSplits: 1, whereSeparator: \.isWhitespace)
         let token = parts.first.map(String.init) ?? ""
         guard !token.contains("/"), !token.hasPrefix("skill:") else { return nil }
         let name = token == "exit" ? "quit" : token.lowercased()
-        guard let command = Self(rawValue: name) else { throw PiError("Unknown command /\(token). Use /help to see available commands.") }
+        guard let command = Self(rawValue: name) else {
+            if catalog.contains(where: { $0.source != .builtin && $0.name == token }) { return nil }
+            throw PiError("Unknown command /\(token). Use /help to see available commands.")
+        }
         let argument = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines) : ""
         guard argument.isEmpty || command.argumentHint != nil else { throw PiError("/\(command.rawValue) does not take arguments") }
         return Invocation(command: command, argument: argument)

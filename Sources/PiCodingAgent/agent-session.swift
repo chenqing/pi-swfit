@@ -196,7 +196,7 @@ public struct PromptOptions: Sendable {
     /** Called once the prompt is handled, queued, or its run has started. */
     public var preflightResult: (@Sendable (PromptDisposition) -> Void)?
     public var expandPromptTemplates: Bool
-    // Not ported: source and prompt template files. The expansion option also gates skills upstream.
+    // Not ported: input source metadata.
     public init(images: [ImageContent]? = nil, streamingBehavior: StreamingBehavior? = nil, preflightResult: (@Sendable (PromptDisposition) -> Void)? = nil, expandPromptTemplates: Bool = true) {
         self.images = images; self.streamingBehavior = streamingBehavior; self.preflightResult = preflightResult
         self.expandPromptTemplates = expandPromptTemplates
@@ -1171,7 +1171,7 @@ public final class AgentSession: @unchecked Sendable {
         let boundary = isStreaming ? nil : try reserveIdleBoundary()
         defer { if let boundary { releaseIdleBoundary(boundary) } }
         let preflightResult = options?.preflightResult
-        if try await extensionRunner?.command(text) == true { preflightResult?(.handled); return }
+        if options?.expandPromptTemplates != false, try await extensionRunner?.command(text) == true { preflightResult?(.handled); return }
 
         if _state.withLock({ $0.compactionAbortController != nil }) {
             throw PiError(
@@ -1187,7 +1187,7 @@ public final class AgentSession: @unchecked Sendable {
             case .continueInput: break
             }
         }
-        let expandedText = options?.expandPromptTemplates == false ? inputText : _expandSkillCommand(inputText)
+        let expandedText = options?.expandPromptTemplates == false ? inputText : expandPromptTemplate(_expandSkillCommand(inputText), templates: resourceLoader?.getPrompts().templates ?? [])
 
         // If streaming, queue via steer() or followUp() based on option
         if isStreaming {
@@ -1245,7 +1245,7 @@ public final class AgentSession: @unchecked Sendable {
             }
         }
         guard !disposed.withLock({ $0 }), _state.withLock({ $0.preparation == nil }) else { throw PiError("Session is closed or changing") }
-        text = _expandSkillCommand(text)
+        text = expandPromptTemplate(_expandSkillCommand(text), templates: resourceLoader?.getPrompts().templates ?? [])
         if behavior == .steer {
             await _queueSteer(text, images)
         } else {

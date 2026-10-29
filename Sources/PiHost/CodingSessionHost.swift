@@ -17,18 +17,20 @@ public final class CodingSessionHost: Sendable {
     public var connectionID: String? { configuration.current.connectionID }
     private let configuration: Locked<(options: AgentOptions, connectionID: String?)>
     private let projectTrusted: Bool
+    private let extensions: [NativeExtension]
     private let lease: HostFileLock?
 
     private init(created: CreateAgentSessionResult, manager: SessionManager, cwd: String, paths: HostPaths,
-                 options: AgentOptions, projectTrusted: Bool, connectionID: String?, lease: HostFileLock?) {
+                 options: AgentOptions, projectTrusted: Bool, extensions: [NativeExtension], connectionID: String?, lease: HostFileLock?) {
         session = created.session; diagnostics = created.resourceDiagnostics; self.manager = manager
-        self.cwd = cwd; self.paths = paths; self.projectTrusted = projectTrusted
+        self.cwd = cwd; self.paths = paths; self.projectTrusted = projectTrusted; self.extensions = extensions
         configuration = Locked((options, connectionID)); self.lease = lease
     }
     public static func open(cwd inputCwd: String, paths: HostPaths = .init(), manager: SessionManager? = nil,
-                            options: AgentOptions, projectTrusted: Bool = false,
-                            connectionID: String? = nil) async throws -> CodingSessionHost {
+                            options: AgentOptions, projectTrusted: Bool? = nil,
+                            connectionID: String? = nil, extensions: [NativeExtension] = []) async throws -> CodingSessionHost {
         let cwd = HostPaths.canonicalWorkspace(inputCwd)
+        let projectTrusted = try projectTrusted ?? WorkspaceResourceTrust(paths: paths).contains(cwd)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw PiError("The workspace folder is no longer available")
@@ -44,13 +46,13 @@ public final class CodingSessionHost: Sendable {
         }
         do {
             let created = try await createAgentSession(.init(cwd: cwd, agentDir: paths.agentDir,
-                projectTrusted: projectTrusted, agentOptions: options, sessionManager: manager))
+                projectTrusted: projectTrusted, agentOptions: options, sessionManager: manager, extensions: extensions))
             if savedConnectionID(manager) != connectionID {
                 do { _ = try manager.appendCustomEntry("pf.connection", connectionID.map(JsonValue.string)) }
                 catch { await created.session.shutdown(); throw error }
             }
             return CodingSessionHost(created: created, manager: manager, cwd: cwd, paths: paths, options: options,
-                                     projectTrusted: projectTrusted, connectionID: connectionID, lease: lease)
+                                     projectTrusted: projectTrusted, extensions: extensions, connectionID: connectionID, lease: lease)
         } catch { lease?.release(); throw error }
     }
     public static func savedConnectionID(_ manager: SessionManager) -> String? {
@@ -64,7 +66,7 @@ public final class CodingSessionHost: Sendable {
         let manager = try self.manager.getSessionFile() == nil ? SessionManager.inMemory(cwd) : SessionManager.create(cwd, self.manager.getSessionDir())
         let current = configuration.current
         return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: current.options,
-                                   projectTrusted: projectTrusted, connectionID: current.connectionID)
+                                   projectTrusted: projectTrusted, connectionID: current.connectionID, extensions: extensions)
     }
     /// Opens a separate leased fork before releasing the source. Failed opening leaves the source usable.
     public func fork(before entryID: String) async throws -> (host: CodingSessionHost, text: String) {
@@ -76,7 +78,7 @@ public final class CodingSessionHost: Sendable {
         var initial = options.initialState ?? AgentInitialState()
         initial.thinkingLevel = nil; options.initialState = initial
         let next = try await Self.open(cwd: cwd, paths: paths, manager: fork, options: options,
-            projectTrusted: projectTrusted, connectionID: connectionID)
+            projectTrusted: projectTrusted, connectionID: connectionID, extensions: extensions)
         return (next, text)
     }
 
@@ -95,7 +97,7 @@ public final class CodingSessionHost: Sendable {
             options.getApiKey = { _ in key }; connectionID = profile.id
         } else { connectionID = configuration.current.connectionID }
         return try await Self.open(cwd: cwd, paths: paths, manager: manager, options: options,
-                                   projectTrusted: projectTrusted, connectionID: connectionID)
+                                   projectTrusted: projectTrusted, connectionID: connectionID, extensions: extensions)
     }
     /// Switches an idle host without reopening its transcript or releasing its file lease.
     public func selectConnection(_ profile: ConnectionProfile, key: String?) async throws {

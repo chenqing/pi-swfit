@@ -20,15 +20,16 @@ public struct ComposerContext {
     public var addTextFile: () -> Void
     public var modelChoices: [ModelChoice]
     public var commandNotice: String?
+    public var commands: [CommandDescriptor]
     public var submitCommand: ((String) -> Void)?
     public var permissionMode: ChatPermissionMode?
     public var canSelectPermissionMode: Bool
     public var selectPermissionMode: ((ChatPermissionMode) -> Void)?
     public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = [],
                 permissionMode: ChatPermissionMode? = nil, canSelectPermissionMode: Bool = true,
-                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil, submitCommand: ((String) -> Void)? = nil, commandNotice: String? = nil) {
+                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil, submitCommand: ((String) -> Void)? = nil, commandNotice: String? = nil, commands: [CommandDescriptor] = CommandDescriptor.builtins()) {
         self.model = model; self.policy = policy; self.configure = configure; self.addTextFile = addTextFile
-        self.modelChoices = modelChoices; self.submitCommand = submitCommand; self.commandNotice = commandNotice
+        self.modelChoices = modelChoices; self.submitCommand = submitCommand; self.commandNotice = commandNotice; self.commands = commands
         self.permissionMode = permissionMode; self.canSelectPermissionMode = canSelectPermissionMode
         self.selectPermissionMode = selectPermissionMode
     }
@@ -48,9 +49,9 @@ public struct Composer: View {
     @State private var choosingPermissions = false
     @State private var commandIndex = 0
     @State private var dismissedCommands = false
-    private var commands: [SlashCommand] {
+    private var commands: [CommandDescriptor] {
         guard context?.submitCommand != nil, !isRunning, !dismissedCommands else { return [] }
-        return SlashCommand.suggestions(text)
+        return CommandDescriptor.suggestions(text, catalog: context?.commands ?? [])
     }
     @FocusState private var fallbackFocused: Bool
     public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, identity: String = "", focusRequest: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void) {
@@ -156,8 +157,8 @@ public struct Composer: View {
         .onChange(of: text) { commandIndex = 0; dismissedCommands = false }
         .onChange(of: identity) { commandIndex = 0; dismissedCommands = false }
     }
-    private func complete(_ command: SlashCommand) {
-        text = "/" + command.rawValue + (command.argumentHint == nil ? "" : " ")
+    private func complete(_ command: CommandDescriptor) {
+        text = "/" + command.name + (command.argumentHint == nil ? "" : " ")
         dismissedCommands = true
         focused = true; fallbackFocused = true
     }
@@ -170,7 +171,7 @@ public struct Composer: View {
         case 48: complete(commands[min(commandIndex, commands.count - 1)])
         case 36, 76:
             let choice = commands[min(commandIndex, commands.count - 1)]
-            if text == "/" + choice.rawValue { submit() }
+            if text == "/" + choice.name { submit() }
             else { complete(choice) }
         default: return false
         }

@@ -77,7 +77,7 @@ struct AppView: View {
                                              selectPermissionMode: { mode in
                                                  do { try session.selectPermissionMode(mode) }
                                                  catch { workspace.error = String(describing: error) }
-                                             }, submitCommand: handleCommand, commandNotice: workspace.commandNotice), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
+                                             }, submitCommand: handleCommand, commandNotice: workspace.commandNotice, commands: session.commands), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
                                          searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" }) { message in
                                                  MessageView(message: message, openChange: openChange)
                                              }
@@ -181,7 +181,7 @@ struct AppView: View {
         guard let target = session, !target.isRunning, !workspace.busy else { return }
         Task { @MainActor in
             do {
-                guard let invocation = try SlashCommand.parse(input) else { await target.send(); return }
+                guard let invocation = try SlashCommand.parse(input, catalog: target.commands) else { await target.send(); return }
                 let argument = invocation.argument
                 switch invocation.command {
                 case .thinking where argument.isEmpty: sheet = .command(.thinking, input)
@@ -205,6 +205,10 @@ struct AppView: View {
                             try workspace.refreshProfiles()
                             let selected = try SlashCommand.matchConnection(argument, profiles: workspace.profiles)
                             try await workspace.selectCommandConnection(selected)
+                        case .reload:
+                            let warnings = try await target.reloadResources()
+                            workspace.commandNotice = warnings.isEmpty ? "Skills, templates and native extension resources reloaded" : "Reloaded with warnings"
+                            if !warnings.isEmpty { sheet = .command(.information(warnings.joined(separator: "\n\n")), "") }
                         case .settings: sheet = .connection
                         case .compact: try await target.compact(argument); workspace.remember(); workspace.commandNotice = "Context compacted"
                         case .session: sheet = .command(.information(try await target.sessionInformation()), "")
@@ -214,7 +218,7 @@ struct AppView: View {
                             guard NSPasteboard.general.setString(text, forType: .string) else { throw PiError("Could not copy the response") }
                             workspace.commandNotice = "Copied last response"
                         case .help:
-                            sheet = .command(.information(SlashCommand.desktop.map { "/" + $0.rawValue + " — " + $0.summary }.joined(separator: "\n\n")), "")
+                            sheet = .command(.information(CommandDescriptor.help(target.commands)), "")
                         default: break
                         }
                     }

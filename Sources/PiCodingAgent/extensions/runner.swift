@@ -58,6 +58,13 @@ public struct ExtensionCommand: Sendable {
     }
 }
 
+public struct ResolvedExtensionCommand: Sendable {
+    public let name: String
+    public let invocationName: String
+    public let description: String
+    public let extensionID: String
+}
+
 /// Trusted, host-supplied Swift extension. Handlers run in registration order.
 public struct NativeExtension: Sendable {
     public let id: String
@@ -95,11 +102,11 @@ public final class ExtensionRunner: Sendable {
     private let extensions: [NativeExtension]
     public var isActive: Bool { !lifetime.signal.aborted }
     public init(_ extensions: [NativeExtension]) throws {
-        var ids = Set<String>(), commands = Set<String>()
+        var ids = Set<String>()
         for item in extensions {
             guard !item.id.isEmpty, ids.insert(item.id).inserted else { throw PiError("Duplicate or empty extension ID: \(item.id)") }
         }
-        for item in extensions { for command in item.commands {
+        for item in extensions { var commands = Set<String>(); for command in item.commands {
             guard command.name.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil,
                   commands.insert(command.name).inserted else { throw PiError("Duplicate or invalid extension command: \(command.name)") }
         } }
@@ -176,14 +183,30 @@ public final class ExtensionRunner: Sendable {
         }
     }
     public func getCommands() -> [(name: String, description: String)] {
-        extensions.flatMap { $0.commands.map { (name: $0.name, description: $0.description) } }
+        getRegisteredCommands().map { (name: $0.invocationName, description: $0.description) }
+    }
+    /// Upstream disambiguates duplicate extension command names in load order.
+    public func getRegisteredCommands() -> [ResolvedExtensionCommand] {
+        guard isActive else { return [] }
+        let names = extensions.flatMap { $0.commands.map(\.name) }
+        let counts = Dictionary(names.map { ($0, 1) }, uniquingKeysWith: +)
+        var seen: [String: Int] = [:], taken: Set<String> = []
+        return extensions.flatMap { item in item.commands.map { command in
+            let occurrence = (seen[command.name] ?? 0) + 1; seen[command.name] = occurrence
+            var invocation = counts[command.name, default: 0] > 1 ? "\(command.name):\(occurrence)" : command.name
+            var suffix = occurrence
+            while !taken.insert(invocation).inserted { suffix += 1; invocation = "\(command.name):\(suffix)" }
+            return ResolvedExtensionCommand(name: command.name, invocationName: invocation,
+                description: command.description, extensionID: item.id)
+        } }
     }
     func command(_ text: String) async throws -> Bool {
         guard text.hasPrefix("/") else { return false }
         let parts = text.dropFirst().split(maxSplits: 1, whereSeparator: \.isWhitespace)
         guard let name = parts.first else { return false }
-        for item in extensions {
-            guard let command = item.commands.first(where: { $0.name == name }),
+        guard let resolved = getRegisteredCommands().first(where: { $0.invocationName == name }) else { return false }
+        for item in extensions where item.id == resolved.extensionID {
+            guard let command = item.commands.first(where: { $0.name == resolved.name }),
                   let context = state.withLock({ $0.contexts[item.id] }) else { continue }
             try lifetime.signal.throwIfAborted()
             try await command.execute(parts.count > 1 ? String(parts[1]) : "", context)

@@ -110,5 +110,5 @@ public func createAgentSession(_ options: CreateAgentSessionOptions) async throw
         let name = $0.hasPrefix("+") || $0.hasPrefix("-") || $0.hasPrefix("!") ? String($0.dropFirst()) : $0
         return !["builtin:mcp", "builtin:tool-search", "builtin:codemode"].contains(name)
     }.map { ResourceDiagnostic(type: .warning, message: "Native Swift sessions cannot load this JavaScript/TypeScript extension path", path: $0) }
-    return .init(session: session, resourceDiagnostics: skills.diagnostics + unsupported, mcp: mcp)
+    return .init(session: session, resourceDiagnostics: skills.diagnostics + resources.getPrompts().diagnostics + unsupported, mcp: mcp)
 }

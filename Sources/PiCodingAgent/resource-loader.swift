@@ -1,11 +1,15 @@
 // ResourceLoader's skills surface, aligned with resource-loader.ts @ 42cb822f1c5d3153069dd0661bfd297424666cf1.
-// Not ported: npm/git package installation, themes, prompt templates, TypeScript extension loading.
+// Not ported: npm/git package installation, themes, TypeScript extension loading.
 import Foundation
 import PiAI
 
 public protocol ResourceLoader: Sendable {
     func getSkills() -> LoadSkillsResult
+    func getPrompts() -> LoadPromptTemplatesResult
     func reload() throws
+}
+public extension ResourceLoader {
+    func getPrompts() -> LoadPromptTemplatesResult { .init() }
 }
 public struct DefaultResourceLoaderOptions: Sendable {
     public var cwd: String
@@ -24,8 +28,10 @@ public struct DefaultResourceLoaderOptions: Sendable {
 public final class DefaultResourceLoader: ResourceLoader, @unchecked Sendable {
     private let options: DefaultResourceLoaderOptions
     private let state = Locked(LoadSkillsResult())
+    private let prompts = Locked(LoadPromptTemplatesResult())
     public init(_ options: DefaultResourceLoaderOptions) { self.options = options }
     public func getSkills() -> LoadSkillsResult { state.withLock { $0 } }
+    public func getPrompts() -> LoadPromptTemplatesResult { prompts.current }
     public func reload() throws {
         let cwd = resolvePath(options.cwd, FileManager.default.currentDirectoryPath)
         let agentDir = resolvePath(options.agentDir, cwd)
@@ -98,6 +104,34 @@ public final class DefaultResourceLoader: ResourceLoader, @unchecked Sendable {
         }
         for path in options.additionalSkillPaths { add(resolvePath(path, cwd), scope: .temporary, base: cwd, entries: [], auto: false) }
         result.diagnostics += collisions
+        var loadedPrompts = LoadPromptTemplatesResult()
+        var promptPaths: Set<String> = []
+        func addPrompts(_ path: String, scope: SourceScope, base: String, entries: [String], auto: Bool) {
+            let loaded = loadPromptTemplates(.init(cwd: cwd, agentDir: agentDir, promptPaths: [path], includeDefaults: false))
+            loadedPrompts.diagnostics += loaded.diagnostics
+            for var prompt in loaded.templates where enabled(prompt.filePath, entries: entries, base: base, auto: auto) {
+                let canonical = URL(fileURLWithPath: prompt.filePath).resolvingSymlinksInPath().path
+                guard promptPaths.insert(canonical).inserted else { continue }
+                if let winner = loadedPrompts.templates.first(where: { $0.name == prompt.name }) {
+                    loadedPrompts.diagnostics.append(.init(type: .collision, message: "name /\(prompt.name) collision", path: prompt.filePath,
+                        collision: .init(resourceType: "prompt", name: prompt.name, winnerPath: winner.filePath, loserPath: prompt.filePath)))
+                } else {
+                    prompt.sourceInfo = createSyntheticSourceInfo(prompt.filePath, source: auto ? "auto" : "local", scope: scope, baseDir: base)
+                    loadedPrompts.templates.append(prompt)
+                }
+            }
+        }
+        // Same ordered local resource discovery as skills; untrusted project settings are excluded.
+        let globalPrompts = options.settingsManager.getGlobalSettings()["prompts"]?.arrayValue?.compactMap(\.stringValue) ?? []
+        let projectPrompts = options.settingsManager.getProjectSettings()["prompts"]?.arrayValue?.compactMap(\.stringValue) ?? []
+        for (entries, base, scope) in [(globalPrompts, agentDir, SourceScope.user)] + (options.projectTrusted ? [(projectPrompts, projectBase, SourceScope.project)] : []) {
+            for entry in entries where !entry.isEmpty && !entry.hasPrefix("!") && !entry.hasPrefix("+") && !entry.hasPrefix("-") && !entry.contains("*") && !entry.contains("?") {
+                addPrompts(resolvePath(entry, base), scope: scope, base: base, entries: entries, auto: false)
+            }
+        }
+        if options.projectTrusted { addPrompts(projectBase + "/prompts", scope: .project, base: projectBase, entries: projectPrompts, auto: true) }
+        addPrompts(agentDir + "/prompts", scope: .user, base: agentDir, entries: globalPrompts, auto: true)
+        prompts.withLock { $0 = loadedPrompts }
         state.withLock { $0 = result }
     }
 }

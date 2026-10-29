@@ -54,9 +54,13 @@ final class CLICommands: Sendable {
                 pendingDraft.withLock { $0 = text ?? "" }
                 printLine("Navigated to selected point.")
             }
+        case .reload:
+            try await session.reloadResources()
+            printLine("Skills, templates and native extension resources reloaded.")
+            for warning in host.resourceDiagnostics() { printLine(warning.message) }
         case .quit: return false
         case .help:
-            printLine(SlashCommand.allCases.map { "/" + $0.rawValue + " — " + $0.summary }.joined(separator: "\n"))
+            printLine(CommandDescriptor.help(host.commandCatalog(includeQuit: true)))
         case .session: printLine(SlashCommand.describe(await session.getSessionStats()))
         case .settings:
             let model = await session.model

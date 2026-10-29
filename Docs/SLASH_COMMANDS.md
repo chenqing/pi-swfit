@@ -9,9 +9,9 @@
 
 This delivery covers `/new`, `/resume`, `/name`, `/model`, `/settings`, `/compact`, `/session`, `/copy`, and native `/help`. pf also keeps `/quit` and `/exit`. Model selection uses saved connections, not upstream catalog discovery. Desktop settings opens the existing connection sheet; pf shows its current configuration and configuration paths.
 
-Deferred: skills/templates/extensions and dynamic resource completion. These are not advertised as implemented. Upstream reference: [builtin definitions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/slash-commands.ts), reviewed 2026-10-29. `/help` and `/exit` are native conveniences.
+Skills/templates/native-extension commands and dynamic completion are covered in Phase 3 below. Upstream reference: [builtin definitions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/slash-commands.ts), reviewed 2026-10-29. `/help` and `/exit` are native conveniences.
 
-Commands execute only while idle. `/compact [instructions]` invokes the existing model-backed compaction flow and may incur provider usage. Read-only info, copy, selection and rename commands do not submit prompts. Unknown single-slash command names fail locally. Absolute paths containing a second slash remain ordinary prompt text. Existing `/skill:name` inputs still pass to the runtime skill expander; discovery/completion is deferred. Command arguments are plain text, not shell syntax; no quote parsing or shell execution occurs.
+Commands execute only while idle. `/compact [instructions]` invokes the existing model-backed compaction flow and may incur provider usage. Read-only info, copy, selection and rename commands do not submit prompts. Unknown single-slash command names fail locally. Absolute paths containing a second slash remain ordinary prompt text. Builtin command arguments remain plain text. Template arguments use the quoting/substitution rules described below; no shell evaluation occurs.
 
 ## Phase 2: thinking and session navigation
 
@@ -32,3 +32,53 @@ Thinking capabilities come from an exact model-catalog match or a saved connecti
 Native boundaries: commands require an idle host. Tree navigation keeps the current model and thinking level, matching upstream; a reopened/forked session restores its recorded level under the current connection's capabilities. Model selection remains based on saved connections. The upstream thinking selector's global-default shortcut, tree labels/filter shortcuts and specialized TypeScript `session_before_tree`/`session_before_fork` extension hooks are not ported. The native runtime uses its existing session lifecycle hook for tree navigation. This is not a full upstream TUI or extension-runtime compatibility claim.
 
 Validation includes host/desktop adapter tests for restore, branching, fork isolation, drafts and failed writes; `scripts/smoke-slash-navigation.py` exercises the actual pf PTY, editable prefill, local validation and resulting JSONL trees.
+
+## Phase 3: resource commands
+
+Reference: upstream [`aee933269ba79b84e7b7454097c1d4c426021d82`](https://github.com/earendil-works/pi/tree/aee933269ba79b84e7b7454097c1d4c426021d82), reviewed 2026-10-29: `core/prompt-templates.ts`, `core/resource-loader.ts`, `core/agent-session.ts`, `core/extensions/runner.ts` and interactive completion.
+
+Desktop and pf share a live catalog for `/help`, completion and routing. Desktop shows the resource type and path tooltip; pf completes a leading command token with Tab or lists multiple matches without submitting. Builtins take precedence, then native extensions, then prompt templates. Commands remain idle-only. Reloading does not create a conversation or clear drafts.
+
+| Surface | Behavior |
+| --- | --- |
+| `/skill:name [instructions]` | Loads the skill's current SKILL.md and wraps it with its name, location and reference directory before appending instructions. `disable-model-invocation` excludes automatic model discovery but retains explicit invocation. `enableSkillCommands: false` hides completion, not explicit execution. |
+| `/template-name [args]` | A direct `.md` child of a prompts directory becomes a command named after the file. YAML `description` and `argument-hint` feed the menu. Expanded content becomes the model/transcript input. |
+| Extension commands | Host-supplied Swift callbacks execute before input hooks, skill expansion and template expansion. Handled commands produce no provider request or synthetic user message; failures remain editable. Duplicate names across extensions become `name:1`, `name:2` in registration order. |
+| `/reload` | Reloads settings, skills and templates, refreshes the catalog and skill system-prompt section, and invokes existing native `resourcesReloaded` callbacks. Reports resource diagnostics. |
+
+Template arguments support single/double quotes (including empty quoted values), `$1`, `$2`, `$@`, `$ARGUMENTS`, `${1:-default}`, `${@:-default}`, `${ARGUMENTS:-default}`, `${@:2}` and `${@:2:3}`. Slices are one-based (`0` also starts at the first argument); omitted values become empty unless a default is supplied. Substitution is a single pass: dollar patterns in supplied values/defaults stay literal. Backslashes do not implement shell escapes. Unknown templates remain literal at the runtime API; the interactive hosts reject unknown command names locally.
+
+Example at `~/.pf/agent/prompts/review.md`:
+
+```markdown
+---
+description: Review a file
+argument-hint: file [focus]
+---
+Review $1, focusing on ${2:-correctness}.
+```
+
+`/review "Sources/My File.swift"` expands to `Review Sources/My File.swift, focusing on correctness.`
+
+The host agent directory defaults to `~/.pf/agent`, overridable with `PF_AGENT_DIR`. Global skills/templates load automatically. Project `.pi/skills`, `.pi/prompts`, `.pi/settings.json` and ancestor `.agents/skills` require explicit workspace trust. Desktop exposes this under Model & workspace; its canonical-folder choice is stored in `trusted-workspaces.json`, shared with pf. `pf --trust-project` enables it for that invocation only. Changing saved trust applies when opening the workspace again; `/reload` does not escalate an existing host's trust. Tool approval modes remain separate.
+
+The local loader evaluates configured global paths, trusted configured project paths, trusted project auto-discovery, then global auto-discovery; first name wins and collisions are reported. The `skills`/`prompts` settings arrays support local paths and the existing inclusion/exclusion rules. Templates are nonrecursive; regular-file symlinks are followed. Installed package resources are not resolved by this native loader.
+
+Native extension injection uses existing Swift types rather than interpreting JavaScript:
+
+```swift
+let commands = NativeExtension(id: "example", commands: [
+    ExtensionCommand(name: "hello", description: "Local callback") { arguments, context in
+        print("Hello \(arguments) from \(context.cwd)")
+    }
+])
+// Desktop embedding:
+let chat = try await ChatSession.openCoding(cwd: cwd, profile: profile, store: store,
+                                           extensions: [commands])
+// Custom pf entry point:
+let status = await PFCLI.run(Array(CommandLine.arguments.dropFirst()), extensions: [commands])
+```
+
+The distributed app/pf do not scan for Swift or TypeScript executable extensions. TS/npm installation, extension argument-completion callbacks, upstream custom TUI widgets, themes and keybinding reload are not implemented. Native command names are ASCII letters/digits/underscore/hyphen; duplicates within one extension remain invalid. Existing native queued-input hooks are unchanged and are not a claim of parity with upstream steer/follow-up restrictions. `expandPromptTemplates: false` suppresses extension dispatch and resource expansion while retaining input hooks. Skill read failures retain the runtime's literal-input fallback and `drainSkillErrors()` diagnostic API; hosts do not yet surface that fallback as an inline warning.
+
+Validation: `scripts/smoke-slash-resources.py` exercises actual pf input and persisted expanded messages. Unit tests cover substitution boundaries, resource trust/reload, collisions, callbacks, disabled model invocation, no-message dispatch and desktop draft recovery.
