@@ -21,6 +21,9 @@ public final class ChatSession {
             return message
         }
     }
+    public var usage: ChatUsageSummary { ChatUsageSummary(messages: messages) }
+    public let availableToolNames: [String]
+    public let modelName: String
     public var draft = ""
     public let approvals: ApprovalCenter
     public var isRunning: Bool { active }
@@ -49,6 +52,8 @@ public final class ChatSession {
                                                           arguments: context.args.value.serialized()), signal: signal)
             return allowed ? nil : BeforeToolCallResult(block: true, reason: "Tool execution was declined.", terminate: true)
         }
+        availableToolNames = (options.initialState?.tools ?? []).map(\.name).sorted()
+        modelName = options.initialState?.model?.name ?? "Unknown model"
         agent = try Agent(options)
     }
 
@@ -127,12 +132,13 @@ public final class ChatSession {
         }
         let host = try await CodingSessionHost.open(cwd: cwd, paths: store.paths, manager: manager,
                                                     options: options, connectionID: profile.id)
-        let result = ChatSession(host: host, approvals: center)
+        let result = ChatSession(host: host, approvals: center, state: await host.session.agent.state)
         result.restore(host.manager.buildSessionContext().messages)
         return result
     }
 
-    private init(host: CodingSessionHost, approvals: ApprovalCenter) {
+    private init(host: CodingSessionHost, approvals: ApprovalCenter, state: AgentState) {
+        availableToolNames = state.tools.map(\.name).sorted(); modelName = state.model.name
         codingHost = host; agent = host.session.agent; self.approvals = approvals
     }
 
@@ -198,6 +204,9 @@ public final class ChatSession {
     private func update(_ message: AssistantMessage) {
         guard let index = messages.firstIndex(where: { $0.id == assistantID }) else { return }
         messages[index].text = message.content.compactMap { if case .text(let t) = $0 { return t.text }; return nil }.joined()
+        if message.usage.input + message.usage.output + message.usage.cacheRead + message.usage.cacheWrite > 0 {
+            messages[index].usage = message.usage
+        }
         for case .toolCall(let call) in message.content {
             upsertTool(call.id, name: call.name, arguments: JsonValue.object(call.arguments).serialized()) { _ in }
         }

@@ -27,6 +27,7 @@ private struct Fixture {
 private let codingStream: StreamFn = { model, context, _ in
     let stream = createAssistantMessageEventStream()
     var message = AssistantMessage(api: model.api, provider: model.provider, model: model.id)
+    message.usage = Usage(input: 20, output: 5, cacheRead: 10, totalTokens: 35)
     if context.messages.filter({ $0.role == "user" }).count > 1 {
         message.content = [.text(TextContent(text: "Restored conversation acknowledged."))]
     } else if !context.messages.contains(where: { if case .toolResult(let r) = $0 { return r.toolName == "read" }; return false }) {
@@ -87,10 +88,14 @@ struct HostTests {
         await #expect(throws: (any Error).self) {
             try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, sessionFile: file, streamFn: codingStream)
         }
+        let savedUsage = chat.usage
+        #expect(savedUsage.reportedRequests == 3)
         await chat.shutdown()
         let saved = try String(contentsOfFile: file, encoding: .utf8)
         #expect(!saved.contains("test-only-secret"))
         let reopened = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, sessionFile: file, streamFn: codingStream)
+        #expect(reopened.usage == savedUsage)
+        #expect(reopened.availableToolNames.contains("edit"))
         #expect(reopened.messages.filter { $0.role == .user }.count == 1)
         #expect(reopened.messages.flatMap(\.tools).contains { $0.diff?.contains("+after") == true && $0.state == .succeeded })
         await reopened.send("Continue")

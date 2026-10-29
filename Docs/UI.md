@@ -99,3 +99,10 @@ The composer keeps a 12 pt gap from the transcript and a smaller 11 pt metadata 
 ### Icons
 
 `ChatSymbol` and `ChatIcon` provide the shared action vocabulary. Navigation and composer icons use regular monochrome 16–18 pt symbols; copy and tool status use 13–14 pt, disclosure arrows 10 pt. Hit areas remain larger than the glyphs. New conversation uses a plus on a quiet circular background; Send uses a Return arrow; Copy uses overlapping squares; settings uses a gear; More uses vertical dots. The dots are a small template image on macOS because native menu buttons discard SwiftUI rotation modifiers. Running tools use a native progress indicator, with separate approval, failed, stopped and completed states. Decorative icons are hidden from accessibility; buttons retain their action labels.
+
+
+### Session details
+
+The right-hand inspector contains collapsible Environment, Context, Tools and Changes cards. Environment shows the current workspace, model and run state, with Finder reveal actions for the workspace and persisted session. Context shows the latest reported input token count (including cache), plus cumulative input/output and cache counts when expanded; it starts collapsed. Missing usage stays unavailable rather than showing an invented zero or capacity percentage. Streaming snapshots replace their response's usage, and persisted branches restore the same totals. Tools lists the actual tool names and the most recent five calls, with a Show all action. Approval, cancellation and completion remain synchronized with the transcript. Changes exposes recorded tool diffs; it is not a Git working-tree or PR view.
+
+Use the top-right sidebar button or Option-Command-I to toggle details. At widths of at least 1080 pt with navigation visible (848 pt without it), the 288 pt inspector sits beside the conversation. Smaller windows use a dismissible 300 pt popover so the composer keeps its width. Each card can collapse independently. Changing the model still uses the existing connection sheet and is disabled during generation.

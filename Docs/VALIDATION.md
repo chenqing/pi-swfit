@@ -46,3 +46,9 @@ Three new AppKit tests cover Return/Cmd-Return submission, modified Return/newli
 ## Icon consistency — 2026-10-29
 
 Shared regular monochrome icons now cover sidebar navigation, toolbar actions, composer, copy, disclosure and tool states. Native light/dark and compact-window checks confirmed the vertical More menu, Return-arrow send button, copy confirmation and tool approval → completion → disclosure. The screenshots were refreshed using only the isolated demonstration profile. The eight-module test suite and Release app packaging passed.
+
+## Session details — 2026-10-29
+
+The right inspector displays the actual workspace/model, provider-reported token usage, available tools and recent calls, and diffs recorded by tools in the current conversation. Tests cover missing usage, cache-inclusive last input, replacement of repeated streaming snapshots, accumulation across turns, reset, and persisted usage restoration.
+
+Native acceptance used a temporary workspace and a loopback SSE fixture: `pf` made an actual approved file edit, then Pi Swift restored its conversation, usage and diff. Wide inline and compact popover layouts, resizing, Option-Command-I, card folding, diff disclosure, configuration-sheet presentation, and light/dark appearance passed. An offline approval scenario verified Needs approval → Stopped and interrupted tool state. README includes only the isolated fixture screenshot. All eight test modules and Release app packaging passed. This does not validate a live provider, Git working-tree status, or full VoiceOver traversal.

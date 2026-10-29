@@ -1,8 +1,9 @@
 import SwiftUI
 
-struct DiffText: View {
+public struct DiffText: View {
     let diff: String
-    var body: some View {
+    public init(diff: String) { self.diff = diff }
+    public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(diff.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
                 Text(line.isEmpty ? " " : line)

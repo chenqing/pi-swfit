@@ -23,6 +23,13 @@ The repository is named **`pi-swfit`**. The product is **Pi Swift**, and the com
 
 </details>
 
+<details>
+<summary>Session details · tools and changes</summary>
+
+![Pi Swift session details with local fixture usage and a recorded file diff](Docs/Images/pi-swift-details.png)
+
+</details>
+
 Native Markdown, copyable code, reviewable changes, and a conversation that fits beside your work. Screenshots use local demonstration fixtures; no external model or personal conversation is shown. [Icon and theme](Docs/BRAND.md).
 
 ## Try it
@@ -36,7 +43,7 @@ swift run pf --demo -p "Hello"
 ./scripts/run-app.sh
 ```
 
-Pi Swift starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream/rich-Markdown scenarios, light/dark appearance, and a collapsible sidebar with search and saved conversations. The script builds `.build/Pi Swift.app` with its icon and resource bundle; `./scripts/build-app.sh release` creates a local release build without opening it.
+Pi Swift starts with an **offline demonstration** that runs through the actual Agent loop, including per-call approval, streaming, tool execution, and cancellation. Open **More → Model & workspace** to select a project folder and save a provider connection in Keychain. Live conversations use the same `PiCodingAgent.AgentSession` and JSONL files as `pf`; the last workspace and conversation reopen on launch. File edits show a diff before approval. It also includes failure/long-stream/rich-Markdown scenarios, light/dark appearance, a collapsible sidebar with search and saved conversations, and a right-hand session inspector for workspace, token usage, tool activity and recorded diffs. Use the top-right sidebar button or Option-Command-I to show details; narrow windows use a popover. The script builds `.build/Pi Swift.app` with its icon and resource bundle; `./scripts/build-app.sh release` creates a local release build without opening it.
 
 ## `pf` — Pi for Swift
 

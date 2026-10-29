@@ -12,7 +12,7 @@ struct PiSwiftApp: App {
     @State private var workspace = AppWorkspace()
     var body: some Scene {
         Window("Pi Swift", id: "main") { AppView(workspace: workspace).frame(minWidth: 640, minHeight: 560).onAppear { delegate.workspace = workspace } }
-            .defaultSize(width: 1024, height: 760).windowStyle(.hiddenTitleBar)
+            .defaultSize(width: 1200, height: 760).windowStyle(.hiddenTitleBar)
             .windowToolbarStyle(.unified)
     }
 }
@@ -35,6 +35,10 @@ struct AppView: View {
     private var connection: String { workspace.connection }
     @State private var sheet: AppSheet?
     @State private var showsSidebar = true
+    @State private var windowSize = CGSize.zero
+    private var detailsFit: Bool { windowSize.width >= (showsSidebar ? 1080 : 848) }
+    @State private var showsDetails = true
+    @State private var showsCompactDetails = false
     @State private var appearance = "system"
     @State private var insertError: String?
     private let sidebarWidth: CGFloat = 232
@@ -54,6 +58,11 @@ struct AppView: View {
                                          composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
                                              configure: { sheet = .connection }, addTextFile: insertTextFile))
                             .frame(maxWidth: .infinity)
+                        if showsDetails && detailsFit {
+                            SessionDetails(workspace: workspace, session: session,
+                                           configure: { sheet = .connection }, close: { showsDetails = false })
+                                .id(ObjectIdentifier(session)).frame(width: 288)
+                        }
                     }
                 } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             }.background {
@@ -65,7 +74,10 @@ struct AppView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigation) { windowIdentity }
                     ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
-                    ToolbarItemGroup(placement: .primaryAction) { windowActions.buttonStyle(.plain) }
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        detailsButton
+                        windowActions.buttonStyle(.plain)
+                    }
                 }
                 .toolbarBackground(headerBackground(width: geometry.size.width), for: .windowToolbar)
                 .toolbarBackground(.visible, for: .windowToolbar)
@@ -73,6 +85,8 @@ struct AppView: View {
                 .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
                 .disabled(workspace.busy)
                 .task { await workspace.start() }
+                .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
+                .onChange(of: detailsFit) { showsCompactDetails = false }
                 .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
                 .sheet(item: $sheet) { destination in
                     Group {
@@ -84,6 +98,26 @@ struct AppView: View {
                 .alert("Couldn’t insert text", isPresented: Binding(get: { insertError != nil }, set: { if !$0 { insertError = nil } })) {
                     Button("OK") { insertError = nil }
                 } message: { Text(insertError ?? "") }
+        }
+    }
+    @ViewBuilder private var detailsButton: some View {
+        if let session {
+            Button {
+                if detailsFit { showsDetails.toggle() } else { showsCompactDetails.toggle() }
+            } label: {
+                Image(systemName: "sidebar.right").font(.system(size: 18, weight: .regular))
+                    .frame(width: 28, height: 32)
+                    .background(.primary.opacity((detailsFit ? showsDetails : showsCompactDetails) ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 6))
+            }.buttonStyle(.plain).help("Session details · ⌥⌘I").accessibilityLabel("Session details")
+                .accessibilityValue((detailsFit ? showsDetails : showsCompactDetails) ? "Shown" : "Hidden")
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .popover(isPresented: $showsCompactDetails, arrowEdge: .bottom) {
+                    SessionDetails(workspace: workspace, session: session,
+                                   configure: { showsCompactDetails = false; sheet = .connection },
+                                   close: { showsCompactDetails = false })
+                        .id(ObjectIdentifier(session)).frame(width: 300, height: min(600, max(380, windowSize.height - 30)))
+                        .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
+                }
         }
     }
     private func headerBackground(width: CGFloat) -> LinearGradient {

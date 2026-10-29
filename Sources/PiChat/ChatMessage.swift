@@ -1,4 +1,5 @@
 import Foundation
+import PiAI
 
 public enum ChatRole: String, Sendable { case user, assistant }
 public enum ChatRunState: String, Sendable { case idle, running, stopping, completed, cancelled, failed }
@@ -21,8 +22,9 @@ public struct ChatMessage: Identifiable, Sendable {
     public let role: ChatRole
     public var text: String
     public var tools: [ChatToolCall]
-    public init(id: UUID = UUID(), role: ChatRole, text: String = "", tools: [ChatToolCall] = []) {
-        self.id = id; self.role = role; self.text = text; self.tools = tools
+    public var usage: Usage?
+    public init(id: UUID = UUID(), role: ChatRole, text: String = "", tools: [ChatToolCall] = [], usage: Usage? = nil) {
+        self.id = id; self.role = role; self.text = text; self.tools = tools; self.usage = usage
     }
 }
 
