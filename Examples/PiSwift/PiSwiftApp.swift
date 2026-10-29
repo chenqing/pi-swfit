@@ -84,12 +84,14 @@ struct AppView: View {
                         }
                     }
                 } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
-            }.background {
-                HStack(spacing: 0) {
-                    if showsSidebar { PiBrand.sidebar.frame(width: sidebarWidth) }
-                    PiBrand.canvas
-                }.ignoresSafeArea(.container, edges: .top)
-            }
+            }.background { windowBackground.ignoresSafeArea(.container, edges: .top) }
+                .overlay(alignment: .top) {
+                    // Paint the titlebar in the content coordinate space, using the same
+                    // exact sidebar edge. Native toolbar materials blur gradient stops.
+                    windowBackground.frame(height: geometry.safeAreaInsets.top)
+                        .offset(y: -geometry.safeAreaInsets.top).allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 .toolbar {
                     ToolbarItem(placement: .navigation) { windowIdentity }
                     ToolbarItem(placement: .principal) { Spacer(minLength: 0) }
@@ -98,8 +100,7 @@ struct AppView: View {
                         windowActions.buttonStyle(.plain)
                     }
                 }
-                .toolbarBackground(headerBackground(width: geometry.size.width), for: .windowToolbar)
-                .toolbarBackground(.visible, for: .windowToolbar)
+                .toolbarBackground(.hidden, for: .windowToolbar)
                 .chatTheme(ChatTheme(accent: PiBrand.accent, accentForeground: PiBrand.onAccent))
                 .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
                 .disabled(workspace.busy)
@@ -143,15 +144,11 @@ struct AppView: View {
                 }
         }
     }
-    private func headerBackground(width: CGFloat) -> LinearGradient {
-        let edge = min(1, sidebarWidth / max(width, 1))
-        let leading = showsSidebar ? PiBrand.sidebar : PiBrand.canvas
-        return LinearGradient(stops: [
-            .init(color: leading, location: 0),
-            .init(color: leading, location: edge),
-            .init(color: PiBrand.canvas, location: edge),
-            .init(color: PiBrand.canvas, location: 1)
-        ], startPoint: .leading, endPoint: .trailing)
+    private var windowBackground: some View {
+        HStack(spacing: 0) {
+            if showsSidebar { PiBrand.sidebar.frame(width: sidebarWidth) }
+            PiBrand.canvas
+        }
     }
     private func openChange(_ change: RecordedChange) {
         let changes = session?.displayedMessages.flatMap(\.tools).compactMap(RecordedChange.init) ?? []
