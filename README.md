@@ -16,23 +16,7 @@ The repository is named **`pi-swfit`**. The product is **Pi Swift**, and the com
 
 ![Pi Swift in the Celadon light theme](Docs/Images/pi-swift-light.png)
 
-<details>
-<summary>Dark appearance · compact window</summary>
-
-![Pi Swift in the Celadon dark theme](Docs/Images/pi-swift-dark.png)
-
-</details>
-
-<details>
-<summary>Session details · tools and changes</summary>
-
-![Pi Swift session details with compact tool and recorded-edit summaries](Docs/Images/pi-swift-details.png)
-
-![Pi Swift recorded diff reader](Docs/Images/pi-swift-diff.png)
-
-</details>
-
-Native Markdown, copyable code, reviewable changes, and a conversation that fits beside your work. Screenshots use local demonstration fixtures; no external model or personal conversation is shown. [Icon and theme](Docs/BRAND.md).
+Native Markdown, copyable code, reviewable changes, and a conversation that fits beside your work. [Icon and theme](Docs/BRAND.md).
 
 ## Try it
 
