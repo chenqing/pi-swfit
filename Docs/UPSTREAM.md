@@ -68,3 +68,7 @@ Use `swift test` for runtime/host regressions and `python3 scripts/smoke-cli.py`
 ## Resource slash backport, 2026-10-29
 
 Reviewed `aee933269ba79b84e7b7454097c1d4c426021d82`: prompt-template parsing/substitution, explicit skills, command precedence and extension invocation-name disambiguation. Desktop and pf share discovery/help/completion and native reload. This does not load TypeScript/npm extensions or replicate extension argument completion. See [SLASH_COMMANDS.md](SLASH_COMMANDS.md#phase-3-resource-commands) for source, usage, trust and native boundaries.
+
+## Native interactive command feedback — 2026-10-29
+
+Desktop and interactive pf explicitly opt into `PromptOptions.strictSkillCommands`, a Swift-native adaptation at the existing post-input-hook expansion boundary. A missing/unreadable skill fails before transcript insertion and provider execution. The option defaults to false, preserving the pinned upstream-compatible SDK literal fallback, extension precedence, and noninteractive pf behavior. Shared host presentation classifies compaction no-ops without changing runtime retention policy or errors.

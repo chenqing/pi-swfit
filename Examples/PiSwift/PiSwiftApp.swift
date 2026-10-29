@@ -57,9 +57,6 @@ struct AppView: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                if let error = workspace.error {
-                    HStack { Text(error).font(.callout).foregroundStyle(.red); Spacer(); Button("Dismiss") { workspace.error = nil } }.padding(12)
-                }
                 if let session {
                     HStack(spacing: 0) {
                         if showsSidebar {
@@ -77,7 +74,7 @@ struct AppView: View {
                                              selectPermissionMode: { mode in
                                                  do { try session.selectPermissionMode(mode) }
                                                  catch { workspace.error = String(describing: error) }
-                                             }, submitCommand: handleCommand, commandNotice: workspace.commandNotice, commands: session.commands), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
+                                             }, submitCommand: handleCommand, commandNotice: workspace.commandNotice, commandError: workspace.error, commandWorking: workspace.commandWorking, dismissNotice: { workspace.commandNotice = nil; workspace.error = nil }, commands: session.commands), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
                                          searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" },
                                          trailingAccessoryWidth: showsDetails && detailsFit ? 302 : 0) { message in
                                                  MessageView(message: message, openChange: openChange)
@@ -116,7 +113,7 @@ struct AppView: View {
                 .onChange(of: geometry.size, initial: true) { windowSize = geometry.size }
                 .onChange(of: detailsFit) { showsCompactDetails = false }
                 .onChange(of: session?.sessionFile) { changeReader.close() }
-                .onChange(of: session?.draft) { workspace.scheduleDraftSave(); if session?.draft.isEmpty == false { workspace.commandNotice = nil } }
+                .onChange(of: session?.draft) { workspace.scheduleDraftSave() }
                 .onChange(of: session?.isRunning) { if session?.isRunning == false { workspace.remember() } }
                 .sheet(item: $sheet) { destination in
                     Group {
@@ -183,6 +180,7 @@ struct AppView: View {
     private func handleCommand(_ input: String) {
         guard let target = session, !target.isRunning, !workspace.busy else { return }
         Task { @MainActor in
+            workspace.beginCommand(); target.clearCommandError()
             do {
                 guard let invocation = try SlashCommand.parse(input, catalog: target.commands) else { await target.send(); return }
                 let argument = invocation.argument
@@ -214,7 +212,8 @@ struct AppView: View {
                             if !warnings.isEmpty { sheet = .command(.information(warnings.joined(separator: "\n\n")), "") }
                         case .settings: sheet = .connection
                         case .compact:
-                            workspace.error = nil
+                            workspace.commandWorking = true
+                            defer { workspace.commandWorking = false }
                             workspace.commandNotice = "Compacting context…"
                             do {
                                 workspace.commandNotice = try await target.compact(argument)
@@ -225,7 +224,7 @@ struct AppView: View {
                             }
                         case .session: sheet = .command(.information(try await target.sessionInformation()), "")
                         case .copy:
-                            guard let text = target.messages.last(where: { $0.role == .assistant && !$0.text.isEmpty })?.text else { throw PiError("No assistant response to copy") }
+                            guard let text = target.messages.last(where: { $0.role == .assistant && !$0.text.isEmpty })?.text else { workspace.commandNotice = CommandFeedback.nothingToCopy; return }
                             NSPasteboard.general.clearContents()
                             guard NSPasteboard.general.setString(text, forType: .string) else { throw PiError("Could not copy the response") }
                             workspace.commandNotice = "Copied last response"
@@ -236,7 +235,7 @@ struct AppView: View {
                     }
                     workspace.composerFocus += 1
                 }
-            } catch { workspace.error = String(describing: error) }
+            } catch { workspace.commandFailed(error) }
         }
     }
     private func insertTextFile() {

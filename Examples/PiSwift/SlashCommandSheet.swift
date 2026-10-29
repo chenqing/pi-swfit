@@ -3,6 +3,7 @@ import PiAI
 import PiChat
 import PiHost
 import PiCodingAgent
+import PiUI
 
 enum CommandSheetKind {
     case model, resume, name, thinking, tree, fork, information(String)
@@ -26,6 +27,8 @@ struct SlashCommandSheet: View {
     @State private var instructions = ""
     @State private var error: String?
     @State private var working = false
+    @State private var loading = true
+    @State private var cancelled = false
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -69,12 +72,16 @@ struct SlashCommandSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
                         if case .model = kind {
-                            if workspace.profiles.isEmpty { Text("No saved connections. Use /settings to add one.").foregroundStyle(.secondary) }
+                            if !loading, workspace.profiles.filter({ query.isEmpty || ($0.name + " " + $0.modelID).localizedCaseInsensitiveContains(query) }).isEmpty {
+                                emptyState(workspace.profiles.isEmpty ? "No saved connections" : "No matching models", detail: workspace.profiles.isEmpty ? "Add a connection in /settings to get started." : "Try another name or clear the search.")
+                            }
                             ForEach(workspace.profiles.filter { query.isEmpty || ($0.name + " " + $0.modelID).localizedCaseInsensitiveContains(query) }) { profile in
                                 choice(profile.modelID, detail: profile.name) { try await workspace.selectCommandConnection(profile) }
                             }
                         } else {
-                            if sessions.isEmpty { Text("No saved conversations in this workspace.").foregroundStyle(.secondary) }
+                            if !loading, sessions.filter({ query.isEmpty || ($0.name ?? $0.firstMessage).localizedCaseInsensitiveContains(query) }).isEmpty {
+                                emptyState(sessions.isEmpty ? "No saved conversations" : "No matching conversations", detail: sessions.isEmpty ? "Your conversations will appear here after you send a message." : "Try another title or clear the search.")
+                            }
                             ForEach(sessions.filter { query.isEmpty || ($0.name ?? $0.firstMessage).localizedCaseInsensitiveContains(query) }, id: \.path) { item in
                                 choice(item.name ?? item.firstMessage, detail: item.modified.formatted(date: .abbreviated, time: .shortened)) { try await workspace.resume(item) }
                             }
@@ -82,8 +89,9 @@ struct SlashCommandSheet: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(height: 240)
             }
-            }.disabled(working)
-            if let error { Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            }.disabled(working || loading)
+            if loading { ProgressView("Loading…").controlSize(.small) }
+            if let error { CommandFeedbackView(error, isError: !cancelled) }
             HStack {
                 if working { ProgressView().controlSize(.small) }
                 Spacer()
@@ -94,7 +102,7 @@ struct SlashCommandSheet: View {
                     Button(isFork ? "Create fork" : "Go to selected point") {
                         guard let selectedID else { return }
                         run { try await workspace.navigate(to: selectedID, fork: isFork, summarize: summarize, instructions: instructions) }
-                    }.keyboardShortcut(.defaultAction).disabled(working || !filteredEntries.contains { $0.id == selectedID })
+                    }.keyboardShortcut(.defaultAction).disabled(working || loading || !filteredEntries.contains { $0.id == selectedID })
                 }
                 if case .name = kind {
                     Button("Save") { run { try workspace.renameCurrent(query) } }
@@ -104,6 +112,7 @@ struct SlashCommandSheet: View {
         }.padding(24).frame(width: 420).interactiveDismissDisabled(working)
             .task {
                 focused = true
+                defer { loading = false }
                 do {
                     if case .thinking = kind, let session = workspace.session {
                         let options = try await session.thinkingOptions()
@@ -135,7 +144,9 @@ struct SlashCommandSheet: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
-                        if filteredEntries.isEmpty { Text("No matching history.").foregroundStyle(.secondary).padding(12) }
+                        if !loading, filteredEntries.isEmpty {
+                            emptyState(entries.isEmpty ? (isFork ? "No messages to fork" : "No conversation history") : "No matching history", detail: entries.isEmpty ? "Send a message first, then return here." : "Try another search or clear it.")
+                        }
                         ForEach(filteredEntries) { item in
                             Button { selectedID = item.id } label: {
                                 HStack(alignment: .top, spacing: 8) {
@@ -167,6 +178,13 @@ struct SlashCommandSheet: View {
             }
         }
     }
+    private func emptyState(_ title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.callout.weight(.medium))
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+            if !query.isEmpty { Button("Clear search") { query = "" }.buttonStyle(.plain).foregroundStyle(.tint) }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+    }
     private func choice(_ title: String, detail: String, action: @escaping () async throws -> Void) -> some View {
         Button { run(action) } label: {
             VStack(alignment: .leading, spacing: 4) {
@@ -177,14 +195,17 @@ struct SlashCommandSheet: View {
     }
     private func run(_ action: @escaping () async throws -> Void) {
         guard !working, let session = workspace.session else { return }
-        working = true; error = nil
+        working = true; error = nil; cancelled = false; workspace.beginCommand()
         Task { @MainActor in
             defer { working = false }
             do {
                 try await session.consumeCommand(input, action: action)
                 workspace.composerFocus += 1
                 dismiss()
-            } catch { self.error = String(describing: error) }
+            } catch {
+                cancelled = CommandFeedback.isCancellation(error)
+                self.error = cancelled ? CommandFeedback.cancelled : String(describing: error)
+            }
         }
     }
 }

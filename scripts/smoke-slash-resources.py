@@ -67,8 +67,14 @@ with tempfile.TemporaryDirectory(prefix='pf-resource-commands-') as temporary:
         send('/fresh')
         assert 'Fresh fallback' in str(users())
         assert 'Unknown command' in send('/review')
+        until('/review')
+        os.write(master, b'\x15')
+        os.write(master, b'/skill:missing\n')
+        until('was not found')
+        until('pf › ')
+        until('/skill:missing')
         assert len(users()) == 3, users()
-        os.write(master, b'/quit\n')
+        os.write(master, b'\x15/quit\n')
         deadline = time.monotonic() + 10
         while process.poll() is None and time.monotonic() < deadline:
             if select.select([master], [], [], .1)[0]:

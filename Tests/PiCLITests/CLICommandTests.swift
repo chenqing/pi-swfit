@@ -13,6 +13,35 @@ private struct NoCredentials: PiHost.CredentialStore {
     func remove(account: String) throws {}
 }
 struct CLICommandTests {
+    @Test func feedbackRestoresFailedAndCancelledCommandsAndExplainsNoOps() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = HostPaths(agentDir: root.appendingPathComponent("agent").path)
+        let model = Model(id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "https://example.invalid")
+        let host = try await CodingSessionHost.open(cwd: root.path, paths: paths, manager: SessionManager.inMemory(root.path), options: AgentOptions(initialState: AgentInitialState(model: model)))
+        let originalEntries = host.manager.getEntries().map(\.id)
+        let output = Locked<[String]>([]), inputs = Locked(["", "999"])
+        let commands = CLICommands(host: host, connections: ConnectionStore(paths: paths, credentials: NoCredentials()), demo: false,
+            printLine: { text in output.withLock { $0.append(text) } }, read: { inputs.withLock { $0.isEmpty ? nil : $0.removeFirst() } })
+        func run(_ line: String) async throws { _ = try await commands.execute(#require(SlashCommand.parse(line)), input: line) }
+        try await run("/compact"); try await run("/copy"); try await run("/fork"); try await run("/model"); try await run("/resume")
+        #expect(output.current.contains { $0.hasPrefix("No compaction needed") })
+        #expect(output.current.contains(CommandFeedback.nothingToCopy))
+        #expect(output.current.contains { $0.hasPrefix("No user messages to fork") })
+        #expect(output.current.contains { $0.hasPrefix("No saved connections") })
+        #expect(output.current.contains { $0.hasPrefix("No saved conversations") })
+        try await run("/thinking ")
+        #expect(commands.pendingDraft.current == "/thinking ")
+        #expect(output.current.contains(CommandFeedback.cancelled))
+        await #expect(throws: (any Error).self) { try await run("/thinking") }
+        #expect(commands.pendingDraft.current == "/thinking")
+        await #expect(throws: (any Error).self) { try await run("/thinking banana") }
+        #expect(commands.pendingDraft.current == "/thinking banana")
+        #expect(host.manager.getEntries().map(\.id) == originalEntries)
+        await host.shutdown()
+    }
+
     @Test func commandsPreserveTranscriptAndResumeThroughLeasedHosts() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

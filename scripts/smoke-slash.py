@@ -45,8 +45,14 @@ with tempfile.TemporaryDirectory(prefix='pf-slash-') as temporary:
         assert 'PTY fixture' in send('/resume', 'Choose a number (empty cancels):')
         assert 'Resumed conversation' in send('1')
         assert 'Unknown command' in send('/not-a-command')
-        assert 'does not take arguments' in send('/new unexpected')
-        send('second fixture message')
+        until('/not-a-command')
+        os.write(master, b'\x15')
+        send('/new unexpected', 'does not take arguments')
+        until('pf › ')
+        until('/new unexpected')
+        os.write(master, b'\x15')
+        send('second fixture message', 'No network or tools were used.')
+        until('pf › ')
         os.write(master, b'/quit\n')
         # Drain terminal redraw/output while libedit restores the terminal on exit.
         deadline = time.monotonic() + 10

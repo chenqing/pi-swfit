@@ -20,6 +20,9 @@ public struct ComposerContext {
     public var addTextFile: () -> Void
     public var modelChoices: [ModelChoice]
     public var commandNotice: String?
+    public var commandError: String?
+    public var commandWorking: Bool
+    public var dismissNotice: (() -> Void)?
     public var commands: [CommandDescriptor]
     public var submitCommand: ((String) -> Void)?
     public var permissionMode: ChatPermissionMode?
@@ -27,9 +30,10 @@ public struct ComposerContext {
     public var selectPermissionMode: ((ChatPermissionMode) -> Void)?
     public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = [],
                 permissionMode: ChatPermissionMode? = nil, canSelectPermissionMode: Bool = true,
-                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil, submitCommand: ((String) -> Void)? = nil, commandNotice: String? = nil, commands: [CommandDescriptor] = CommandDescriptor.builtins()) {
+                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil, submitCommand: ((String) -> Void)? = nil, commandNotice: String? = nil, commandError: String? = nil, commandWorking: Bool = false, dismissNotice: (() -> Void)? = nil, commands: [CommandDescriptor] = CommandDescriptor.builtins()) {
         self.model = model; self.policy = policy; self.configure = configure; self.addTextFile = addTextFile
         self.modelChoices = modelChoices; self.submitCommand = submitCommand; self.commandNotice = commandNotice; self.commands = commands
+        self.commandError = commandError; self.commandWorking = commandWorking; self.dismissNotice = dismissNotice
         self.permissionMode = permissionMode; self.canSelectPermissionMode = canSelectPermissionMode
         self.selectPermissionMode = selectPermissionMode
     }
@@ -61,6 +65,9 @@ public struct Composer: View {
     private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let context, let message = context.commandError ?? context.commandNotice {
+                CommandFeedbackView(message, isError: context.commandError != nil, isWorking: context.commandWorking, dismiss: context.dismissNotice)
+            }
             if !commands.isEmpty {
                 SlashCommandMenu(commands: commands, selected: commandIndex) { command in
                     complete(command)
@@ -106,9 +113,6 @@ public struct Composer: View {
                     .strokeBorder(Color.primary.opacity(focused ? 0.20 : 0.10), lineWidth: 1))
                 .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
                 .animation(.easeOut(duration: 0.15), value: focused)
-            if let notice = context?.commandNotice {
-                Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
-            }
             HStack(spacing: 12) {
                 if let context, let mode = context.permissionMode, let select = context.selectPermissionMode {
                     Button { choosingPermissions.toggle() } label: {

@@ -11,6 +11,8 @@ public final class ChatSession {
     public private(set) var messages: [ChatMessage] = []
     public private(set) var state: ChatRunState = .idle
     public private(set) var error: String?
+    public private(set) var isCommandError = false
+    public private(set) var cancellationMessage = "Stopped · Your partial response is preserved"
     public var displayedMessages: [ChatMessage] {
         let pendingIDs = Set(approvals.pending.map(\.id))
         return messages.map { message in
@@ -75,9 +77,17 @@ public final class ChatSession {
         approvals.permissionMode = mode
     }
 
+    public func clearCommandError() {
+        guard isCommandError else { return }
+        error = nil; isCommandError = false
+        if state == .failed { state = .idle }
+    }
+
     public func send(_ text: String? = nil) async {
         let input = (text ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty, !isRunning, !isChangingConnection else { return }
+        cancellationMessage = "Stopped · Your partial response is preserved"
+        isCommandError = false
         draft = ""; error = nil; state = .running; active = true; assistantID = nil
         approvals.reset()
         let pendingUser = ChatMessage(role: .user, text: input)
@@ -94,7 +104,7 @@ public final class ChatSession {
         await withTaskCancellationHandler {
             do {
                 if let codingHost {
-                    try await codingHost.session.prompt(input, .init(preflightResult: { result in disposition.withLock { $0 = result } }))
+                    try await codingHost.session.prompt(input, .init(preflightResult: { result in disposition.withLock { $0 = result } }, strictSkillCommands: true))
                 }
                 else { try await agent.prompt(input) }
             } catch {
@@ -107,7 +117,10 @@ public final class ChatSession {
         }
         if codingHost != nil, disposition.current == nil || disposition.current == .handled {
             messages.removeAll { $0.id == pendingUser.id }
-            if error != nil, draft.isEmpty { draft = input }
+            if error != nil {
+                isCommandError = true
+                if draft.isEmpty { draft = input }
+            }
         }
         if Task.isCancelled { state = .cancelled }
     }
@@ -191,6 +204,7 @@ public final class ChatSession {
     /// without replacing text the user prepared while an async command was running.
     public func consumeCommand(_ input: String, action: () async throws -> Void) async throws {
         guard !isRunning, !isChangingConnection, draft == input else { throw PiError("The draft changed or the conversation is busy") }
+        clearCommandError()
         draft = ""
         do { try await action() }
         catch {
@@ -219,32 +233,41 @@ public final class ChatSession {
         guard let host = codingHost else { throw PiError("Open a workspace to navigate history") }
         return host.navigationItems(forkOnly: forkOnly)
     }
-    public func navigate(to id: String, fork: Bool, summarize: Bool = false, instructions: String = "") async throws {
+    @discardableResult
+    public func navigate(to id: String, fork: Bool, summarize: Bool = false, instructions: String = "") async throws -> String {
         guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Wait for the conversation to be idle") }
         guard draft.isEmpty else { throw PiError("Save or clear the draft before navigating history") }
+        if !fork, host.manager.getLeafId() == id { return "Already at this point. No changes were made." }
+        cancellationMessage = "Navigation cancelled. Your conversation is unchanged."
         active = true; error = nil; state = .running
         defer {
             active = false
             if state == .stopping { state = .cancelled }
             else if state == .running { state = .idle }
         }
-        let text: String?
-        if fork {
-            let result = try await host.fork(before: id)
-            codingHost = result.host; agent = result.host.session.agent; commands = result.host.commandCatalog(); text = result.text
-            await host.shutdown()
-            approvals.reset(); approvals.permissionMode = .manual
-        } else {
-            text = try await host.session.navigateTree(id, summarize: summarize,
-                customInstructions: instructions.isEmpty ? nil : instructions)
+        do {
+            let text: String?
+            if fork {
+                let result = try await host.fork(before: id)
+                codingHost = result.host; agent = result.host.session.agent; commands = result.host.commandCatalog(); text = result.text
+                await host.shutdown()
+                approvals.reset(); approvals.permissionMode = .manual
+            } else {
+                text = try await host.session.navigateTree(id, summarize: summarize,
+                    customInstructions: instructions.isEmpty ? nil : instructions)
+            }
+            if let current = codingHost {
+                restore(current.manager.buildSessionContext().messages)
+                name = current.manager.getSessionName()
+            }
+            // A new draft typed while summarizing is never overwritten.
+            if let text, !text.isEmpty { draft += (draft.isEmpty ? "" : "\n\n") + text }
+            state = .idle
+            return fork ? "Fork created. Edit the restored message to continue." : "Moved to selected point."
+        } catch {
+            state = state == .stopping || CommandFeedback.isCancellation(error) ? .cancelled : .failed
+            throw error
         }
-        if let current = codingHost {
-            restore(current.manager.buildSessionContext().messages)
-            name = current.manager.getSessionName()
-        }
-        // A new draft typed while summarizing is never overwritten.
-        if let text, !text.isEmpty { draft += (draft.isEmpty ? "" : "\n\n") + text }
-        state = .idle
     }
 
     public func sessionInformation() async throws -> String {
@@ -255,25 +278,15 @@ public final class ChatSession {
     @discardableResult
     public func compact(_ instructions: String = "") async throws -> String {
         guard !isRunning, !isChangingConnection, let host = codingHost else { throw PiError("Open an idle workspace before compacting") }
+        cancellationMessage = "Compaction cancelled. Your conversation is unchanged."
         active = true; state = .running; error = nil
         defer { active = false }
         do {
-            _ = try await host.session.compact(instructions.isEmpty ? nil : instructions)
-            state = .completed
-            return "Context compacted. You can continue chatting."
+            let notice = try await CommandFeedback.compact(host.session, instructions: instructions)
+            state = notice.hasPrefix("Context compacted.") ? .completed : .idle
+            return notice
         } catch {
-            // The upstream runtime reports this no-op as an error. Present it as
-            // information without changing the runtime or its retention policy.
-            if state != .stopping, let failure = error as? PiError,
-               failure.message == "Nothing to compact (session too small)" || failure.message == "Already compacted" {
-                let settings = try host.session.settingsManager.getCompactionSettings(await host.session.model)
-                state = .idle
-                if host.manager.getBranch().last?.type == "compaction" {
-                    return "Context is already compacted. You can continue chatting."
-                }
-                return "No compaction needed. Pi keeps about \(settings.keepRecentTokens.formatted()) tokens of recent messages; there is no earlier context to summarize. You can continue chatting."
-            }
-            state = state == .stopping ? .cancelled : .failed
+            state = state == .stopping || CommandFeedback.isCancellation(error) ? .cancelled : .failed
             throw error
         }
     }

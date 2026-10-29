@@ -31,6 +31,42 @@ private struct CommandFixture {
 }
 
 struct ResourceCommandTests {
+    @Test @MainActor func interactiveSkillsFailBeforeSendingAndRetainEditableInput() async throws {
+        let f = CommandFixture(); defer { f.cleanup() }
+        try f.write("agent/skills/review/SKILL.md", "---\nname: review\ndescription: Review\n---\nReview body")
+        let store = ConnectionStore(paths: f.paths, credentials: MemoryCredentials())
+        let profile = ConnectionProfile(name: "Fixture", modelID: "fixture", api: "openai-completions", endpoint: "https://example.invalid")
+        let chat = try await ChatSession.openCoding(cwd: f.root.path, profile: profile, store: store, streamFn: f.stream)
+        chat.draft = "/skill:missing instructions"
+        await chat.send()
+        #expect(chat.draft == "/skill:missing instructions")
+        #expect(chat.error?.contains("was not found") == true)
+        #expect(chat.state == .failed && chat.messages.isEmpty && f.requests.current.isEmpty)
+        chat.clearCommandError()
+        #expect(chat.error == nil && chat.state == .idle && chat.draft == "/skill:missing instructions")
+        try FileManager.default.removeItem(at: f.root.appendingPathComponent("agent/skills/review/SKILL.md"))
+        chat.draft = "/skill:review keep decisions"
+        await chat.send()
+        #expect(chat.draft == "/skill:review keep decisions")
+        #expect(chat.error?.contains("Could not read skill") == true)
+        #expect(chat.messages.isEmpty && f.requests.current.isEmpty)
+        try f.write("agent/skills/review/SKILL.md", "---\nname: review\ndescription: Review\n---\nRepaired skill")
+        await chat.send()
+        #expect(chat.error == nil && chat.draft.isEmpty && chat.state == .completed)
+        #expect(f.requests.current.last?.contains("Repaired skill") == true)
+        await chat.shutdown()
+    }
+    @Test func strictSkillExpansionIsOptInAndPreservesRuntimeFallback() async throws {
+        let f = CommandFixture(); defer { f.cleanup() }
+        let host = try await f.open()
+        let count = host.manager.getEntries().count
+        await #expect(throws: (any Error).self) { try await host.session.prompt("/skill:missing", .init(strictSkillCommands: true)) }
+        #expect(host.manager.getEntries().count == count && f.requests.current.isEmpty)
+        try await host.session.prompt("/skill:missing")
+        #expect(f.requests.current.last == "/skill:missing")
+        await host.shutdown()
+    }
+
     @Test func trustDiscoveryFiltersAndReloadStayInSameSession() async throws {
         let f = CommandFixture(); defer { f.cleanup() }
         try f.write("agent/prompts/review.md", "Global $1")

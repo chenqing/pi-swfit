@@ -153,7 +153,7 @@ public enum PFCLI {
             let session = activeHost.current.session
             let disposition = Locked<PromptDisposition?>(nil)
             do {
-                try await session.prompt(text, .init(preflightResult: { result in disposition.withLock { $0 = result } }))
+                try await session.prompt(text, .init(preflightResult: { result in disposition.withLock { $0 = result } }, strictSkillCommands: interactive))
             } catch {
                 if interactive, disposition.current == nil {
                     commands.pendingDraft.withLock { $0 = text }
@@ -182,15 +182,19 @@ public enum PFCLI {
                         .replacingOccurrences(of: "\r", with: "\n")
                     free(buffer)
                     if line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
+                    var builtin = true
                     do {
                         if let invocation = try SlashCommand.parse(line, catalog: activeHost.current.commandCatalog(includeQuit: true)) {
                             let previous = activeHost.current
-                            guard try await commands.execute(invocation) else { break }
+                            guard try await commands.execute(invocation, input: line) else { break }
                             if activeHost.current !== previous {
                                 subscription(); subscription = activeHost.current.session.subscribe(observe)
                             }
-                        } else { try await prompt(line) }
-                    } catch { diagnostic("pf: \(error)\n") }
+                        } else { builtin = false; try await prompt(line) }
+                    } catch {
+                        if builtin { commands.pendingDraft.withLock { $0 = line } }
+                        diagnostic("pf: \(error)\n")
+                    }
                 }
             }
         } catch { await activeHost.current.shutdown(); throw error }

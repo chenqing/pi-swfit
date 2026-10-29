@@ -29,6 +29,31 @@ private struct NavigationFixture {
 }
 
 struct NavigationTests {
+    @Test @MainActor func desktopNavigationDistinguishesNoOpFailureAndCancellation() async throws {
+        let f = NavigationFixture(); defer { f.cleanup() }
+        try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
+        let store = ConnectionStore(paths: f.paths, credentials: MemoryCredentials())
+        let profile = ConnectionProfile(name: "Fixture", modelID: "fixture", api: "openai-completions", endpoint: "https://example.invalid")
+        let chat = try await ChatSession.openCoding(cwd: f.root.path, profile: profile, store: store, streamFn: f.stream)
+        await chat.send("first"); await chat.send("second")
+        let current = try #require(try chat.navigationItems().first(where: \.isCurrent))
+        let file = URL(fileURLWithPath: try #require(chat.sessionFile))
+        let before = try Data(contentsOf: file)
+        #expect(try await chat.navigate(to: current.id, fork: false).hasPrefix("Already"))
+        f.fail.withLock { $0 = true }
+        let user = try #require(try chat.navigationItems(forkOnly: true).first)
+        chat.draft = "/tree"
+        await #expect(throws: (any Error).self) {
+            try await chat.consumeCommand("/tree") { _ = try await chat.navigate(to: user.id, fork: false, summarize: true) }
+        }
+        #expect(chat.state == .failed && !chat.isRunning && chat.draft == "/tree")
+        #expect(try Data(contentsOf: file) == before)
+        #expect(try chat.navigationItems().first(where: \.isCurrent)?.id == current.id)
+        #expect(CommandFeedback.isCancellation(PiError("Branch summarization cancelled")))
+        #expect(!CommandFeedback.isCancellation(PiError("provider failure")))
+        await chat.shutdown()
+    }
+
     @Test func initialThinkingDoesNotDiscardSeedMessages() async throws {
         let f = NavigationFixture(); defer { f.cleanup() }
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
@@ -182,7 +207,7 @@ struct NavigationTests {
         let chat = try await ChatSession.openCoding(cwd: f.root.path, profile: profile, store: store, streamFn: f.stream)
         try await chat.selectThinking("high")
         await chat.send("original draft")
-        let entry = try #require(chat.navigationItems(forkOnly: true).first)
+        let entry = try #require(try chat.navigationItems(forkOnly: true).first)
         chat.draft = "keep this"
         await #expect(throws: (any Error).self) { try await chat.navigate(to: entry.id, fork: true) }
         #expect(chat.draft == "keep this")

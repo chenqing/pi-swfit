@@ -42,7 +42,10 @@ with tempfile.TemporaryDirectory(prefix='pf-navigation-') as temporary:
         until('pf › ')
         assert 'Thinking level: off' in send('/thinking off')
         assert 'Available levels: off' in send('/thinking high')
-        send('first fixture message')
+        until('/thinking high')  # failed input is restored for editing
+        os.write(master, b'\x15')
+        send('first fixture message', 'No network or tools were used.')
+        until('pf › ')
         second = 'second fixture message\n第二行'
         os.write(master, 'second fixture message\x16\n第二行\n'.encode())
         until('No network or tools were used.')

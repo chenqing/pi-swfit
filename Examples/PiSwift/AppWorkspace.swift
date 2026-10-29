@@ -11,6 +11,7 @@ final class AppWorkspace {
     var profile: ConnectionProfile?
     var error: String?
     var commandNotice: String?
+    var commandWorking = false
     var busy = false
     var connection = "Offline demo"
     let store = ConnectionStore()
@@ -41,6 +42,11 @@ final class AppWorkspace {
                 try self.saveDraft()
             } catch is CancellationError {} catch { self?.error = "Could not save the draft: \(error)" }
         }
+    }
+    func beginCommand() { error = nil; commandNotice = nil }
+    func commandFailed(_ failure: any Error) {
+        if CommandFeedback.isCancellation(failure) { error = nil; commandNotice = CommandFeedback.cancelled }
+        else { commandNotice = nil; error = String(describing: failure) }
     }
     func renameCurrent(_ title: String) throws {
         try session?.rename(title); libraryRevision += 1
@@ -134,7 +140,7 @@ final class AppWorkspace {
     }
     func resume(_ info: SessionInfo) async throws {
         guard session?.isRunning != true, !busy else { throw PiError("Wait for the current operation to finish") }
-        if session?.sessionFile == info.path { return }
+        if session?.sessionFile == info.path { commandNotice = "Already in this conversation."; return }
         busy = true; defer { busy = false }
         let manager = try SessionManager.open(info.path)
         guard let id = CodingSessionHost.savedConnectionID(manager) else { throw PiError("This session has no saved connection. Open it with pf --connection NAME --session PATH first.") }
@@ -174,23 +180,25 @@ final class AppWorkspace {
         guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
         busy = true; defer { busy = false }
         try saveDraft(); try await session.reset()
+        commandNotice = "New conversation ready."
         composerGeneration += 1; newConversationRequest += 1; composerFocus += 1; searchTerm = ""; remember()
     }
     func navigate(to id: String, fork: Bool, summarize: Bool, instructions: String) async throws {
         guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
         busy = true; defer { busy = false }
         try saveDraft()
-        try await session.navigate(to: id, fork: fork, summarize: summarize, instructions: instructions)
+        let notice = try await session.navigate(to: id, fork: fork, summarize: summarize, instructions: instructions)
         composerGeneration += 1; composerFocus += 1; libraryRevision += 1; searchTerm = ""
         try saveDraft(); remember()
-        commandNotice = fork ? "Fork created · edit the restored message to continue" : "Moved to selected point"
+        commandNotice = notice
     }
     func selectCommandConnection(_ selected: ConnectionProfile) async throws {
         guard !busy, let session, !session.isRunning else { throw PiError("Wait for the current operation to finish") }
-        if selected.id == profile?.id { return }
+        if selected.id == profile?.id { commandNotice = "Already using " + selected.modelID + "."; return }
         busy = true; defer { busy = false }
         try await session.selectConnection(selected, store: store)
         profile = selected; connection = selected.name; remember()
+        commandNotice = "Model changed to " + selected.modelID + "."
     }
     func demo(_ scenario: DemoScenario, clearError: Bool = true) async {
         guard session?.isRunning != true else { return }
@@ -225,7 +233,7 @@ final class AppWorkspace {
         }
         let old = session
         composerGeneration += 1; searchTerm = ""
-        session = next; self.profile = profile; connection = profile?.name ?? "Offline demo"; error = nil
+        session = next; self.profile = profile; connection = profile?.name ?? "Offline demo"; error = nil; commandNotice = nil
         await old?.shutdown()
     }
 }

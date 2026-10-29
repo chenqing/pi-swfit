@@ -196,10 +196,12 @@ public struct PromptOptions: Sendable {
     /** Called once the prompt is handled, queued, or its run has started. */
     public var preflightResult: (@Sendable (PromptDisposition) -> Void)?
     public var expandPromptTemplates: Bool
+    /// Native interactive hosts reject missing/unreadable skills before creating a turn.
+    public var strictSkillCommands: Bool
     // Not ported: input source metadata.
-    public init(images: [ImageContent]? = nil, streamingBehavior: StreamingBehavior? = nil, preflightResult: (@Sendable (PromptDisposition) -> Void)? = nil, expandPromptTemplates: Bool = true) {
+    public init(images: [ImageContent]? = nil, streamingBehavior: StreamingBehavior? = nil, preflightResult: (@Sendable (PromptDisposition) -> Void)? = nil, expandPromptTemplates: Bool = true, strictSkillCommands: Bool = false) {
         self.images = images; self.streamingBehavior = streamingBehavior; self.preflightResult = preflightResult
-        self.expandPromptTemplates = expandPromptTemplates
+        self.expandPromptTemplates = expandPromptTemplates; self.strictSkillCommands = strictSkillCommands
     }
 }
 
@@ -308,6 +310,20 @@ public final class AgentSession: @unchecked Sendable {
 
     public func drainSkillErrors() -> [ResourceDiagnostic] {
         skillErrors.withLock { let result = $0; $0.removeAll(); return result }
+    }
+    private func _expandInteractiveSkill(_ text: String) throws -> String {
+        guard text.hasPrefix("/skill:") else { return text }
+        let parts = text.dropFirst(7).split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        let name = parts.first.map(String.init) ?? ""
+        guard let skill = resourceLoader?.getSkills().skills.first(where: { $0.name == name }) else {
+            throw PiError("Skill \"\(name)\" was not found. Use /help to choose a skill, or /reload after adding one.")
+        }
+        do {
+            let normalized = "/skill:" + name + (parts.count > 1 ? " " + parts[1] : "")
+            return try expandSkillCommand(normalized, skills: [skill])
+        } catch {
+            throw PiError("Could not read skill \"\(name)\". Check its SKILL.md file and run /reload. Your message was not sent.")
+        }
     }
     private func _expandSkillCommand(_ text: String) -> String {
         do { return try expandSkillCommand(text, skills: resourceLoader?.getSkills().skills ?? []) }
@@ -1187,7 +1203,7 @@ public final class AgentSession: @unchecked Sendable {
             case .continueInput: break
             }
         }
-        let expandedText = options?.expandPromptTemplates == false ? inputText : expandPromptTemplate(_expandSkillCommand(inputText), templates: resourceLoader?.getPrompts().templates ?? [])
+        let expandedText = options?.expandPromptTemplates == false ? inputText : expandPromptTemplate(try options?.strictSkillCommands == true ? _expandInteractiveSkill(inputText) : _expandSkillCommand(inputText), templates: resourceLoader?.getPrompts().templates ?? [])
 
         // If streaming, queue via steer() or followUp() based on option
         if isStreaming {

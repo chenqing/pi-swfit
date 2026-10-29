@@ -60,6 +60,12 @@ struct ComposerEditor: NSViewRepresentable {
             DispatchQueue.main.async { coordinator?.parent.focused = value }
         }
         editor.synchronize(text, identity: identity)
+        // Replacing an empty NSTextStorage during command recovery can drop its
+        // foreground attribute. Keep restored drafts readable in either theme.
+        if !editor.hasMarkedText() {
+            editor.textColor = .labelColor
+            editor.typingAttributes[.foregroundColor] = NSColor.labelColor
+        }
         coordinator.requestFocus(focused, editor: editor)
         if coordinator.lastFocusRequest != focusRequest {
             coordinator.lastFocusRequest = focusRequest

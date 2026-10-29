@@ -98,23 +98,21 @@ public struct ConversationView<MessageContent: View>: View {
                     }
                     if let error = session.error {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label { Text(error) } icon: { ChatIcon(.failure, size: 14) }
-                                .font(.callout).textSelection(.enabled)
+                            CommandFeedbackView(error, isError: true, dismiss: session.isCommandError ? { session.clearCommandError() } : nil)
                             HStack(spacing: 16) {
-                                if let last = session.messages.last(where: { $0.role == .user }), !last.text.isEmpty {
+                                if !session.isCommandError, let last = session.messages.last(where: { $0.role == .user }), !last.text.isEmpty {
                                     Button(session.draft.isEmpty ? "Edit last message" : "Add last message to draft") {
                                         appendToDraft(last.text)
                                     }.disabled(session.isRunning || session.draft.hasSuffix(last.text))
                                         .help("Prepare a new message. Completed tool actions remain in the conversation.")
                                 }
-                                if let composerContext {
+                                if !session.isCommandError, let composerContext {
                                     Button("Manage connections…", action: composerContext.configure).disabled(session.isRunning)
                                 }
                             }.font(.caption).buttonStyle(.borderless)
-                        }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                            .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        }.frame(maxWidth: .infinity, alignment: .leading)
                     } else if session.state == .cancelled {
-                        Text("Stopped · Your partial response is preserved").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(session.cancellationMessage).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Composer(text: $session.draft, isRunning: session.isRunning, context: composerContext,
                              identity: "\(ObjectIdentifier(session))|\(session.sessionFile ?? "")|\(composerGeneration)", focusRequest: focusRequest + localFocus,
