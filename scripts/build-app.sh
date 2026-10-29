@@ -10,8 +10,10 @@ pi_app="$PWD/.build/Pi Swift.app"
 pi_iconset="$PWD/.build/PiSwift.iconset"
 mkdir -p "$pi_app/Contents/MacOS" "$pi_app/Contents/Resources" "$pi_iconset"
 cp "$pi_bin_dir/PiSwift" "$pi_app/Contents/MacOS/PiSwift"
-# SwiftPM's generated Bundle.module lookup uses the main bundle root on macOS.
-ditto "$pi_bin_dir/Pi_PiSwift.bundle" "$pi_app/Pi_PiSwift.bundle"
+# Bundle.module searches resourceURL. Keep resources inside Contents so the
+# final app has a sealable macOS bundle layout.
+rm -rf "$pi_app/Pi_PiSwift.bundle"
+ditto "$pi_bin_dir/Pi_PiSwift.bundle" "$pi_app/Contents/Resources/Pi_PiSwift.bundle"
 for size in 16 32 128 256 512; do
     sips -z "$size" "$size" Examples/PiSwift/Assets/AppIcon.png --out "$pi_iconset/icon_${size}x${size}.png" >/dev/null
     double=$((size * 2))
@@ -34,4 +36,5 @@ cat > "$pi_app/Contents/Info.plist" <<'PLIST'
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+bash scripts/sign-local.sh "$pi_app"
 printf '%s\n' "$pi_app"
