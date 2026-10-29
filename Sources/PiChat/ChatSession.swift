@@ -28,11 +28,14 @@ public final class ChatSession {
     public private(set) var isChangingConnection = false
     public var draft = ""
     public let approvals: ApprovalCenter
+    public var permissionMode: ChatPermissionMode { approvals.permissionMode }
+    public var canSelectPermissionMode: Bool { managesApprovals && !isRunning && !isChangingConnection && approvals.pending.isEmpty }
     public var isRunning: Bool { active }
     public var sessionFile: String? { codingHost?.manager.getSessionFile() }
     public var workspace: String? { codingHost?.cwd }
     public var connectionID: String? { codingHost?.connectionID }
     private var active = false
+    private var managesApprovals = true
     @ObservationIgnored private var codingHost: CodingSessionHost?
     @ObservationIgnored private var agent: Agent
     @ObservationIgnored private var assistantID: UUID?
@@ -40,6 +43,7 @@ public final class ChatSession {
     public init(options: AgentOptions, approvalPolicy: ChatApprovalPolicy = .always) throws {
         let center = ApprovalCenter()
         approvals = center
+        managesApprovals = approvalPolicy == .always
         var options = options
         if options.streamFn == nil {
             options.streamFn = { model, context, options in
@@ -50,6 +54,8 @@ public final class ChatSession {
         options.beforeToolCall = { context, signal in
             if let decision = try await hostAuthorization?(context, signal), decision.block == true { return decision }
             guard approvalPolicy == .always else { return nil }
+            try signal?.throwIfAborted()
+            guard await center.permissionMode.requiresApproval(tool: context.toolCall.name, arguments: context.args.value, workspace: nil) else { return nil }
             let allowed = await center.request(ChatApproval(id: context.toolCall.id, toolName: context.toolCall.name,
                                                           arguments: context.args.value.serialized()), signal: signal)
             return allowed ? nil : BeforeToolCallResult(block: true, reason: "Tool execution was declined.", terminate: true)
@@ -57,6 +63,12 @@ public final class ChatSession {
         availableToolNames = (options.initialState?.tools ?? []).map(\.name).sorted()
         modelName = options.initialState?.model?.name ?? "Unknown model"
         agent = try Agent(options)
+    }
+
+    /// Affects only this open conversation. Never resolves an already-pending call.
+    public func selectPermissionMode(_ mode: ChatPermissionMode) throws {
+        guard canSelectPermissionMode else { throw PiError("Wait for the conversation to be idle before changing permissions") }
+        approvals.permissionMode = mode
     }
 
     public func send(_ text: String? = nil) async {
@@ -106,9 +118,10 @@ public final class ChatSession {
         } else { try await agent.reset() }
         messages = []; draft = ""; error = nil; state = .idle; assistantID = nil; name = nil
         approvals.reset()
+        approvals.permissionMode = .manual
     }
 
-    /// Opens an upstream coding session with explicit per-call approval and disk persistence.
+    /// Opens a persistent coding session in Manual mode, with workspace reads approved.
     public static func openCoding(cwd inputCwd: String, profile: ConnectionProfile, store: ConnectionStore,
                                   sessionFile: String? = nil, streamFn: StreamFn? = nil) async throws -> ChatSession {
         let cwd = HostPaths.canonicalWorkspace(inputCwd)
@@ -124,10 +137,13 @@ public final class ChatSession {
             model: try profile.model(), tools: PiHost.createCodingTools(cwd: cwd)), streamFn: streamFn,
             getApiKey: { _ in key })
         options.beforeToolCall = { context, signal in
+            try signal?.throwIfAborted()
             let preview = try previewCodingChange(name: context.toolCall.name, arguments: context.args.value, cwd: cwd)
-            let allowed = await center.request(ChatApproval(id: context.toolCall.id, toolName: context.toolCall.name,
-                arguments: context.args.value.serialized(), preview: preview?.diff), signal: signal)
-            guard allowed else { return BeforeToolCallResult(block: true, reason: "Tool execution was declined.", terminate: true) }
+            if await center.permissionMode.requiresApproval(tool: context.toolCall.name, arguments: context.args.value, workspace: cwd) {
+                let allowed = await center.request(ChatApproval(id: context.toolCall.id, toolName: context.toolCall.name,
+                    arguments: context.args.value.serialized(), preview: preview?.diff), signal: signal)
+                guard allowed else { return BeforeToolCallResult(block: true, reason: "Tool execution was declined.", terminate: true) }
+            }
             try signal?.throwIfAborted()
             try preview?.verifyUnchanged()
             return nil

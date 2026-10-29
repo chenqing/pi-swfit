@@ -4,6 +4,7 @@ import PiAI
 
 @MainActor @Observable
 public final class ApprovalCenter {
+    public internal(set) var permissionMode: ChatPermissionMode = .manual
     public private(set) var pending: [ChatApproval] = []
     @ObservationIgnored private var decisions: [String: CheckedContinuation<Bool, Never>] = [:]
     @ObservationIgnored private var rejected: Set<String> = []

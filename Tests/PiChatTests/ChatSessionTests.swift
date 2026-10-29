@@ -144,4 +144,47 @@ struct ChatSessionTests {
         #expect(session.approvals.pending.isEmpty)
         #expect(session.messages.flatMap(\.tools).first?.output.contains("Host denied") == true)
     }
+
+    @Test func bypassExecutesOnceAndModeChangesPreserveDraftAndTranscript() async throws {
+        let calls = Locked(0)
+        let session = try ChatSession(options: options(executions: calls))
+        session.draft = "Keep this draft"
+        try session.selectPermissionMode(.bypassPermissions)
+        #expect(session.draft == "Keep this draft")
+        #expect(session.messages.isEmpty)
+        await session.send("First")
+        #expect(calls.current == 1 && session.approvals.pending.isEmpty)
+        let ids = session.messages.map(\.id)
+        session.draft = "Next draft"
+        try session.selectPermissionMode(.manual)
+        #expect(session.messages.map(\.id) == ids && session.draft == "Next draft")
+        try session.selectPermissionMode(.bypassPermissions)
+        try await session.reset()
+        #expect(session.permissionMode == .manual)
+    }
+
+    @Test func changingModeCannotApproveAnAlreadyPendingCall() async throws {
+        let calls = Locked(0)
+        let session = try ChatSession(options: options(executions: calls))
+        let task = Task { await session.send("Hello") }
+        try await until { !session.approvals.pending.isEmpty }
+        #expect(!session.canSelectPermissionMode)
+        #expect(throws: (any Error).self) { try session.selectPermissionMode(.bypassPermissions) }
+        #expect(session.permissionMode == .manual && calls.current == 0)
+        session.stop(); await task.value
+        #expect(session.canSelectPermissionMode)
+    }
+
+    @Test func bypassStillHonorsHostDenialAndHostManagedSessionsCannotChangePolicy() async throws {
+        let calls = Locked(0)
+        var config = options(executions: calls)
+        config.beforeToolCall = { _, _ in BeforeToolCallResult(block: true, reason: "Host denied", terminate: true) }
+        let session = try ChatSession(options: config)
+        try session.selectPermissionMode(.bypassPermissions)
+        await session.send("Hello")
+        #expect(calls.current == 0 && session.approvals.pending.isEmpty)
+        let managed = try ChatSession(options: config, approvalPolicy: .handledByHost)
+        #expect(!managed.canSelectPermissionMode)
+        #expect(throws: (any Error).self) { try managed.selectPermissionMode(.bypassPermissions) }
+    }
 }

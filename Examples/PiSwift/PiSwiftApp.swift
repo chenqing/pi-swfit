@@ -67,11 +67,15 @@ struct AppView: View {
                                 .overlay(alignment: .trailing) { SidebarResizeHandle(width: $savedSidebarWidth, maximum: sidebarMaximum) }.zIndex(1)
                         }
                         ConversationView(session: session, brandIcon: Image(nsImage: PiBrand.icon),
-                                         composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: "Ask before tools",
+                                         composerContext: ComposerContext(model: workspace.profile?.modelID ?? "Offline demo", policy: session.permissionMode.title,
                                              configure: { sheet = .connection }, addTextFile: insertTextFile,
                                              modelChoices: workspace.cwd == nil ? [] : workspace.profiles.map { profile in
                                                  ComposerContext.ModelChoice(id: profile.id, title: profile.modelID, detail: profile.name,
                                                      selected: profile.id == workspace.profile?.id, select: { Task { await workspace.selectConnection(profile) } })
+                                             }, permissionMode: session.permissionMode, canSelectPermissionMode: session.canSelectPermissionMode,
+                                             selectPermissionMode: { mode in
+                                                 do { try session.selectPermissionMode(mode) }
+                                                 catch { workspace.error = String(describing: error) }
                                              }), composerGeneration: workspace.composerGeneration, focusRequest: workspace.composerFocus,
                                          searchTerm: workspace.searchTerm, searchRequest: workspace.searchRequest, closeSearch: { workspace.searchTerm = "" }) { message in
                                                  MessageView(message: message, openChange: openChange)

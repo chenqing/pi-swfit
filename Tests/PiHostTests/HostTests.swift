@@ -75,9 +75,8 @@ struct HostTests {
         try f.store.save(f.profile, apiKey: "test-only-secret")
         let chat = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, streamFn: codingStream)
         let task = Task { await chat.send("Read and update sample.txt") }; defer { task.cancel() }
-        let read = try #require(await waitForApproval(chat)); #expect(read.toolName == "read")
-        chat.approvals.resolve(read.id, allow: true)
         let edit = try #require(await waitForApproval(chat)); #expect(edit.toolName == "edit")
+        #expect(chat.messages.flatMap(\.tools).contains { $0.name == "read" && $0.state == .succeeded })
         #expect(edit.preview?.contains("-before") == true && edit.preview?.contains("+after") == true)
         #expect(try String(contentsOfFile: f.cwd + "/sample.txt", encoding: .utf8) == "before\n")
         chat.approvals.resolve(edit.id, allow: true); await task.value
@@ -115,7 +114,6 @@ struct HostTests {
         try "before\n".write(toFile: f.cwd + "/sample.txt", atomically: true, encoding: .utf8)
         let chat = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, streamFn: codingStream)
         let task = Task { await chat.send("Update") }; defer { task.cancel() }
-        let read = try #require(await waitForApproval(chat)); chat.approvals.resolve(read.id, allow: true)
         let edit = try #require(await waitForApproval(chat))
         try "external edit\n".write(toFile: f.cwd + "/sample.txt", atomically: true, encoding: .utf8)
         chat.approvals.resolve(edit.id, allow: true); await task.value
@@ -124,12 +122,73 @@ struct HostTests {
         await chat.shutdown()
     }
 
+    @Test(arguments: [ChatPermissionMode.acceptEdits, .bypassPermissions])
+    func automaticEditsStillRecordDiffAndReopeningResetsMode(_ mode: ChatPermissionMode) async throws {
+        let f = Fixture(); try f.prepare(); defer { f.cleanup() }
+        try "before\n".write(toFile: f.cwd + "/sample.txt", atomically: true, encoding: .utf8)
+        let chat = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, streamFn: codingStream)
+        let originalFile = chat.sessionFile
+        chat.draft = "Unsent draft"
+        try chat.selectPermissionMode(mode)
+        #expect(chat.sessionFile == originalFile && chat.draft == "Unsent draft")
+        let task = Task { await chat.send("Update") }; defer { task.cancel() }
+        for _ in 0..<400 {
+            if chat.state == .completed || !chat.approvals.pending.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(chat.approvals.pending.isEmpty)
+        if chat.isRunning { chat.stop() }
+        await task.value
+        #expect(try String(contentsOfFile: f.cwd + "/sample.txt", encoding: .utf8) == "after\n")
+        #expect(chat.messages.flatMap(\.tools).contains { $0.name == "edit" && $0.diff?.contains("+after") == true })
+        let file = try #require(chat.sessionFile)
+        let transcript = try Data(contentsOf: URL(fileURLWithPath: file))
+        try chat.selectPermissionMode(.manual)
+        #expect(try Data(contentsOf: URL(fileURLWithPath: file)) == transcript)
+        await chat.shutdown()
+        let reopened = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, sessionFile: file, streamFn: codingStream)
+        #expect(reopened.permissionMode == .manual)
+        await reopened.shutdown()
+    }
+
+    @Test(arguments: [ChatPermissionMode.manual, .acceptEdits, .bypassPermissions])
+    func shellApprovalFollowsSelectedMode(_ mode: ChatPermissionMode) async throws {
+        let f = Fixture(); try f.prepare(); defer { f.cleanup() }
+        let stream: StreamFn = { model, context, _ in
+            let output = createAssistantMessageEventStream()
+            var message = AssistantMessage(api: model.api, provider: model.provider, model: model.id)
+            if context.messages.last?.role == "toolResult" { message.content = [.text(TextContent(text: "Done"))] }
+            else {
+                message.content = [.toolCall(ToolCall(id: "shell", name: "bash", arguments: ["command": "printf permission-fixture"]))]
+                message.stopReason = .toolUse
+            }
+            output.push(.done(reason: message.stopReason, message: message)); return output
+        }
+        let chat = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, streamFn: stream)
+        try chat.selectPermissionMode(mode)
+        let task = Task { await chat.send("Run fixture") }; defer { task.cancel() }
+        if mode != .bypassPermissions {
+            let approval = try #require(await waitForApproval(chat))
+            #expect(approval.toolName == "bash")
+            #expect(chat.messages.flatMap(\.tools).allSatisfy { $0.output.isEmpty })
+            chat.approvals.resolve(approval.id, allow: true)
+        }
+        for _ in 0..<400 {
+            if chat.state == .completed || !chat.approvals.pending.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(chat.approvals.pending.isEmpty)
+        if chat.isRunning { chat.stop() }
+        await task.value
+        #expect(chat.messages.flatMap(\.tools).first?.output.contains("permission-fixture") == true)
+        await chat.shutdown()
+    }
+
     @Test func declinedEditDoesNotWriteAndNewConversationPreservesOldSession() async throws {
         let f = Fixture(); try f.prepare(); defer { f.cleanup() }
         try "before\n".write(toFile: f.cwd + "/sample.txt", atomically: true, encoding: .utf8)
         let chat = try await ChatSession.openCoding(cwd: f.cwd, profile: f.profile, store: f.store, streamFn: codingStream)
         let task = Task { await chat.send("Update") }; defer { task.cancel() }
-        let read = try #require(await waitForApproval(chat)); chat.approvals.resolve(read.id, allow: true)
         let edit = try #require(await waitForApproval(chat)); chat.approvals.resolve(edit.id, allow: false)
         await task.value
         #expect(try String(contentsOfFile: f.cwd + "/sample.txt", encoding: .utf8) == "before\n")
@@ -155,6 +214,7 @@ struct HostTests {
 
     @Test func cancellingApprovalReleasesSessionAndFolderAliasesShareHistory() async throws {
         let f = Fixture(); try f.prepare(); defer { f.cleanup() }
+        try "before\n".write(toFile: f.cwd + "/sample.txt", atomically: true, encoding: .utf8)
         let alias = f.root.appendingPathComponent("alias").path
         try FileManager.default.createSymbolicLink(atPath: alias, withDestinationPath: f.cwd)
         #expect(f.paths.sessionDirectory(cwd: alias) == f.paths.sessionDirectory(cwd: f.cwd))

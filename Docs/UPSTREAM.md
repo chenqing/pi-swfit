@@ -43,7 +43,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 | CLI print / JSONL / sessions | Native host implemented; subset documented in CLI.md |
 | CLI read / write / edit / bash | Matching reviewed input schemas; native behavior limits documented |
 | CLI TUI, RPC, npm extensions and package installation | Not ported |
-| PiHost / PiChat / PiUI | Swift-native host and presentation; shared AgentSession persistence, per-call UI approval; not upstream APIs |
+| PiHost / PiChat / PiUI | Swift-native host and presentation; shared AgentSession persistence and native UI permission modes; not upstream APIs |
 | iOS | Runtime manifest declares iOS 17; complete package/UI not validated on iOS |
 | Linux / Windows | Not claimed |
 

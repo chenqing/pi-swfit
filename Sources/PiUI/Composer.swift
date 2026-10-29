@@ -1,4 +1,5 @@
 import SwiftUI
+import PiChat
 
 /// Host-owned controls; the composer does not choose models or alter tool permissions.
 public struct ComposerContext {
@@ -17,9 +18,16 @@ public struct ComposerContext {
     public var configure: () -> Void
     public var addTextFile: () -> Void
     public var modelChoices: [ModelChoice]
-    public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = []) {
+    public var permissionMode: ChatPermissionMode?
+    public var canSelectPermissionMode: Bool
+    public var selectPermissionMode: ((ChatPermissionMode) -> Void)?
+    public init(model: String, policy: String, configure: @escaping () -> Void, addTextFile: @escaping () -> Void, modelChoices: [ModelChoice] = [],
+                permissionMode: ChatPermissionMode? = nil, canSelectPermissionMode: Bool = true,
+                selectPermissionMode: ((ChatPermissionMode) -> Void)? = nil) {
         self.model = model; self.policy = policy; self.configure = configure; self.addTextFile = addTextFile
         self.modelChoices = modelChoices
+        self.permissionMode = permissionMode; self.canSelectPermissionMode = canSelectPermissionMode
+        self.selectPermissionMode = selectPermissionMode
     }
 }
 
@@ -34,6 +42,7 @@ public struct Composer: View {
     @State private var focused = false
     @State private var editorHeight: CGFloat = 28
     @State private var addingContent = false
+    @State private var choosingPermissions = false
     @FocusState private var fallbackFocused: Bool
     public init(text: Binding<String>, isRunning: Bool, context: ComposerContext? = nil, identity: String = "", focusRequest: Int = 0, send: @escaping () -> Void, stop: @escaping () -> Void) {
         self.identity = identity; self.focusRequest = focusRequest
@@ -83,8 +92,29 @@ public struct Composer: View {
                 .shadow(color: .black.opacity(0.025), radius: 8, y: 2)
                 .animation(.easeOut(duration: 0.15), value: focused)
             HStack(spacing: 12) {
-                Text(context?.policy ?? (isRunning ? "You can prepare your next message" : "Return to send · ⇧ Return for a new line"))
-                    .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "Return to send · ⇧ Return for a new line")
+                if let context, let mode = context.permissionMode, let select = context.selectPermissionMode {
+                    Button { choosingPermissions.toggle() } label: {
+                        HStack(spacing: 5) {
+                            Text(mode.title)
+                            Image(systemName: "chevron.down").font(.system(size: 9))
+                        }.foregroundStyle(mode == .bypassPermissions ? Color.orange : .secondary)
+                            .lineLimit(1).fixedSize(horizontal: true, vertical: false).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(isRunning || !context.canSelectPermissionMode)
+                        .layoutPriority(1)
+                        .help(isRunning ? "Wait for this response to finish before changing permissions" : mode.detail)
+                        .accessibilityLabel("Permissions: \(mode.title)")
+                        .popover(isPresented: $choosingPermissions, arrowEdge: .bottom) {
+                            PermissionModeMenu(selected: mode) { choice in
+                                select(choice); choosingPermissions = false
+                            }
+                        }
+                        .onChange(of: isRunning) { if isRunning { choosingPermissions = false } }
+                        .onChange(of: identity) { choosingPermissions = false }
+                        .onChange(of: choosingPermissions) { if !choosingPermissions { focused = true } }
+                } else {
+                    Text(context?.policy ?? (isRunning ? "You can prepare your next message" : "Return to send · ⇧ Return for a new line"))
+                        .lineLimit(1).fixedSize(horizontal: true, vertical: false).help(context?.policy ?? "Return to send · ⇧ Return for a new line")
+                }
                 Spacer(minLength: 8)
                 if let context {
                     Menu {
@@ -99,7 +129,7 @@ public struct Composer: View {
                         Button("Manage connections…", action: context.configure)
                     } label: {
                         Text(context.model).lineLimit(1).truncationMode(.middle)
-                            .frame(maxWidth: 220, alignment: .trailing)
+                            .frame(maxWidth: context.permissionMode == .bypassPermissions ? 180 : 220, alignment: .trailing)
                     }.menuStyle(.borderlessButton).menuIndicator(.visible).fixedSize().disabled(isRunning)
                         .tint(.primary)
                         .help("Choose model · \(context.model)").accessibilityLabel("Model: \(context.model)")
@@ -108,7 +138,7 @@ public struct Composer: View {
         }
     }
     private func submit() {
-        guard canSend, !isRunning, !addingContent else { return }
+        guard canSend, !isRunning, !addingContent, !choosingPermissions else { return }
         send()
         focused = true
         fallbackFocused = true

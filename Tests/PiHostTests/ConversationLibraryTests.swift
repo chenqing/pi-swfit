@@ -62,10 +62,12 @@ import PiChat
         await chat.send("First")
         let file = try #require(chat.sessionFile)
         chat.draft = "Keep this draft"
+        try chat.selectPermissionMode(.acceptEdits)
         var invalid = second; invalid.endpoint = "ftp://example.invalid"
         await #expect(throws: (any Error).self) { try await chat.selectConnection(invalid, store: store) }
         #expect(chat.connectionID == first.id && chat.draft == "Keep this draft" && !chat.isChangingConnection)
         try await chat.selectConnection(second, store: store)
+        #expect(chat.permissionMode == .acceptEdits)
         #expect(chat.draft == "Keep this draft" && chat.sessionFile == file)
         #expect(chat.messages.filter { $0.role == .user }.count == 1)
         #expect(chat.connectionID == second.id)

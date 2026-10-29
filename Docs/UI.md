@@ -22,7 +22,7 @@ let session = try ChatSession(options: AgentOptions(
 
 `model`, `tools` and `credentials` above are host-owned values. They are not globals supplied by this package.
 
-Every tool requires a per-call decision by default. An existing host `beforeToolCall` denial is preserved. `.handledByHost` disables the UI gate only when the host supplies its own authorization. Declining an approval does not execute the tool. Stopping clears pending approvals, retains partial text, and does not replay tools or roll back completed external effects.
+Generic `ChatSession(options:)` tools require a per-call decision by default. Persistent coding sessions use Manual mode: host-owned reads inside the workspace run directly; edits, commands and other calls ask first. An existing host `beforeToolCall` denial is preserved. `.handledByHost` disables the UI gate only when the host supplies its own authorization. Declining an approval does not execute the tool. Stopping clears pending approvals, retains partial text, and does not replay tools or roll back completed external effects.
 
 ## Compose
 
@@ -75,7 +75,7 @@ let chat = try await ChatSession.openCoding(
 await chat.shutdown()
 ```
 
-The session owns persistence and the original model transcript. Restoration projects user/assistant text and tool results into UI rows; it does not resubmit old tool calls. Every coding tool asks for approval, including reads and shell commands. The selected workspace is a working directory, not a sandbox: absolute paths and bash can reach outside it.
+The session owns persistence and the original model transcript. Restoration projects user/assistant text and tool results into UI rows; it does not resubmit old tool calls. Coding tools follow the conversation’s permission mode described below. The selected workspace is a working directory, not a sandbox: absolute paths and bash can reach outside it.
 
 Pi Swift does not automatically trust project `.pi` resources. Connections and working-directory choices are saved locally; conversation drafts are restored separately, while in-flight network requests are not resumed. Imported CLI sessions need a saved connection association (`pf --connection NAME --session PATH`) before Pi Swift can reopen them. See [HOST.md](HOST.md).
 
@@ -89,7 +89,7 @@ Parsing runs off the main actor. Each visible message coalesces streaming deltas
 Only HTTP, HTTPS and mailto links are interactive. Images display their alternative text, and raw HTML is shown literally; rendering a reply does not fetch images or execute HTML. Tables honor column alignment and scroll horizontally in a narrow companion layout. **More → Scenarios → Rich Markdown** provides a deterministic streaming fixture for all these blocks.
 
 
-`ComposerContext` lets a host supply the model label, approval label, settings action and text-file insertion action. Pi Swift's Add menu inserts UTF-8 file text (up to 128 KiB) into the draft; it does not upload an attachment or submit a message. The draft stays editable during generation. The Add popover closes with Escape and returns focus to the editor; inserting a file preserves the existing draft. Native selection, undo, multiline paste and internal scrolling are supported. The model footer opens a quick menu of saved connections, with a checkmark for the active model and a separate Manage connections action. Hosts supply choices through `ComposerContext.modelChoices`. Switching changes subsequent requests while keeping the current transcript, draft and session file; the active file lease remains held and credentials follow the selected connection. The model control is disabled while a request is running, and permissions remain explicit per tool call. Empty input has no send button; On macOS, Return (or Cmd-Return) sends nonblank input; Shift-Return and Option-Return insert a newline. Return confirms marked IME text without sending. Held Return does not repeat submission. During generation, Return leaves the next draft untouched.
+`ComposerContext` lets a host supply the model label, approval label, settings action and text-file insertion action. Pi Swift's Add menu inserts UTF-8 file text (up to 128 KiB) into the draft; it does not upload an attachment or submit a message. The draft stays editable during generation. The Add popover closes with Escape and returns focus to the editor; inserting a file preserves the existing draft. Native selection, undo, multiline paste and internal scrolling are supported. The model footer opens a quick menu of saved connections, with a checkmark for the active model and a separate Manage connections action. Hosts supply choices through `ComposerContext.modelChoices`. Switching changes subsequent requests while keeping the current transcript, draft and session file; the active file lease remains held and credentials follow the selected connection. The model control is disabled while a request is running, and the adjacent permission control is also disabled while a request is running. Empty input has no send button; On macOS, Return (or Cmd-Return) sends nonblank input; Shift-Return and Option-Return insert a newline. Return confirms marked IME text without sending. Held Return does not repeat submission. During generation, Return leaves the next draft untouched.
 
 ### Detail polish
 
@@ -132,3 +132,16 @@ Intermediate assistant fragments have no hidden action shelf. Their original tex
 These choices were checked against locally installed Claude Desktop 4.29.0's bundled design-system CSS and native Code interface. The bundle exposes message and composer primitives, including the 85% bubble measure; it does not contain the complete remotely loaded conversation implementation. The Swift turn-spacing rules above are PiUI's implementation, not copied proprietary code or a claim of exact source parity.
 
 The titlebar and body backgrounds now use the same fixed-width sidebar split in content coordinates. The native toolbar background is hidden to avoid material blur around a gradient boundary. A non-interactive, accessibility-hidden cover uses the actual top safe-area height to keep scrolled content out of the titlebar; sidebar resizing and visibility update both backgrounds together.
+
+
+### Permission modes
+
+The composer’s left footer opens a **Mode** popover with a selected checkmark, descriptive rows and these three choices:
+
+- **Manual** (default): host-owned reads inside the working directory run directly; edits, writes, shell commands and other tools require approval.
+- **Accept edits**: also permits ordinary workspace `edit` and `write` calls. Outside-workspace paths (including resolved symlinks), `.git`, `.pi` and `.pf` metadata/configuration changes still ask. Shell always asks in this implementation.
+- **Bypass permissions**: skips the desktop approval gate for tools, including shell. The footer and choice use orange, and the menu explains that macOS permissions still apply and the workspace is not a sandbox. Host-supplied denials still win; argument validation, cancellation and edit conflict checks still run.
+
+`ChatSession.selectPermissionMode(_:)` changes the active gate without rebuilding the conversation, changing its model, clearing its draft or rewriting its transcript. It rejects changes while running, stopping, switching connections or waiting for an approval. Selecting Bypass never approves a pending call. Model switches retain the current mode. New conversations and reopened sessions start in Manual; permission mode is deliberately not persisted in JSONL or workspace settings. Generic host-managed approval policies remain under the host’s control, and custom tools do not gain automatic file approval by copying built-in names.
+
+This aligns the menu placement and the supported mode names with the installed Claude Desktop 4.29.0 menu, and the baseline read/edit behavior with [Claude’s permission documentation](https://code.claude.com/docs/en/permissions). It does not implement Claude’s full security engine: Auto (a separate model classifier), Plan (a separate planning flow), saved allow/ask/deny rules, shell-command classification and sandboxing are not provided. This app retains approval for all shell commands in Manual and Accept edits. Path checks help decide when to ask; they are not an operating-system filesystem sandbox and do not provide race-proof isolation.
