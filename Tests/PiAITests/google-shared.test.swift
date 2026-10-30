@@ -132,6 +132,80 @@ struct GoogleSharedConvertToolsTests {
     }
 }
 
+// Regression coverage for #11308.
+@Suite("google-shared convertTools const handling")
+struct GoogleSharedConvertToolsConstTests {
+    private func jsonSchema(_ parameters: JsonValue) throws -> JsonValue? {
+        try convertToolsGoogle([makeTool(parameters)])?[0]["functionDeclarations"]?[0]?["parametersJsonSchema"]
+    }
+
+    @Test("preserves literal data under %s", arguments: ["default", "examples", "enum", "const", "x-custom"])
+    func preservesLiteralData(_ key: String) throws {
+        let literal = #"{"const":"literal-data","properties":{"nested":{"const":1}}}"#
+        let value = key == "enum" || key == "examples" ? "[\(literal)]" : literal
+        let parameters = cJSON(#"{"type":"object","properties":{"value":{"type":"object","\#(key)":\#(value)}}}"#)
+        let original = parameters
+
+        #expect(try jsonSchema(parameters) == original)
+        #expect(parameters == original)
+    }
+
+    @Test("preserves names while rewriting schemas in %s", arguments: ["properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"])
+    func preservesNames(_ key: String) throws {
+        let parameters = cJSON(#"{"type":"object","\#(key)":{"__proto__":{"const":"x"},"const":{"const":"y"},"properties":{"const":"z"}}}"#)
+        let original = parameters
+        let expected = cJSON(#"{"type":"object","\#(key)":{"__proto__":{"enum":["x"]},"const":{"enum":["y"]},"properties":{"enum":["z"]}}}"#)
+
+        let result = try jsonSchema(parameters)
+        #expect(result == expected)
+        #expect(result?.serialized() == expected.serialized())
+        #expect(parameters == original)
+    }
+
+    @Test("rewrites only schema-bearing keywords")
+    func rewritesOnlySchemaKeywords() throws {
+        let parameters = cJSON(#"""
+        {"type":"object","additionalProperties":{"const":"x"},"unevaluatedProperties":false,"propertyNames":{"const":"name"},
+         "allOf":[{"if":{"const":"x"},"then":{"const":"y"},"else":{"not":{"const":"z"}}}],
+         "properties":{"list":{"type":"array","items":[{"const":1}],"prefixItems":[{"const":2}],"additionalItems":{"const":3},"contains":{"const":4},"unevaluatedItems":{"const":5}}},
+         "dependencies":{"list":["other"]}}
+        """#)
+
+        #expect(try jsonSchema(parameters) == cJSON(#"""
+        {"type":"object","additionalProperties":{"enum":["x"]},"unevaluatedProperties":false,"propertyNames":{"enum":["name"]},
+         "allOf":[{"if":{"enum":["x"]},"then":{"enum":["y"]},"else":{"not":{"enum":["z"]}}}],
+         "properties":{"list":{"type":"array","items":[{"enum":[1]}],"prefixItems":[{"enum":[2]}],"additionalItems":{"enum":[3]},"contains":{"enum":[4]},"unevaluatedItems":{"enum":[5]}}},
+         "dependencies":{"list":["other"]}}
+        """#))
+    }
+
+    @Test("rewrites string and number const values to single-value enums in parametersJsonSchema")
+    func rewritesConstToEnum() throws {
+        let parameters = cJSON(#"""
+        {"type":"object","properties":{
+          "origin":{"type":"string","const":"zq-src-7"},
+          "mode":{"anyOf":[{"type":"string","const":"a"},{"type":"string","const":"b"}]},
+          "level":{"oneOf":[{"const":1},{"const":2}]},
+          "flag":{"type":"boolean","const":true},
+          "list":{"type":"array","items":{"const":"x"}},
+          "const":{"type":"string"}},
+         "required":["origin"]}
+        """#)
+
+        #expect(try jsonSchema(parameters) == cJSON(#"""
+        {"type":"object","properties":{
+          "origin":{"type":"string","enum":["zq-src-7"]},
+          "mode":{"anyOf":[{"type":"string","enum":["a"]},{"type":"string","enum":["b"]}]},
+          "level":{"oneOf":[{"enum":[1]},{"enum":[2]}]},
+          "flag":{"type":"boolean","const":true},
+          "list":{"type":"array","items":{"enum":["x"]}},
+          "const":{"type":"string"}},
+         "required":["origin"]}
+        """#))
+        #expect(parameters["properties"]?["origin"] == cJSON(#"{"type":"string","const":"zq-src-7"}"#))
+    }
+}
+
 // MARK: - google request retries
 
 private final class CallCounter: Sendable {

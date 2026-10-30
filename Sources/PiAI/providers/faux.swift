@@ -266,11 +266,12 @@ private func withUsageEstimate(
             if let previousPrompt = cache[sessionId] {
                 let cachedChars = commonPromptPrefixLength(previousPrompt, prompt)
                 cacheRead = Int((Double(cachedChars) / 4).rounded(.up))
-                cacheWrite = Int((Double(promptLength - cachedChars) / 4).rounded(.up))
-                input = max(0, promptTokens - cacheRead)
+                cacheWrite = max(0, promptTokens - cacheRead)
             } else {
                 cacheWrite = promptTokens
             }
+            // Every prompt token is either read from or written to the simulated cache.
+            input = 0
             cache[sessionId] = prompt
         }
     }

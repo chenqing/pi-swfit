@@ -2,7 +2,7 @@
 # Produce an independently verifiable, notarized local distribution. Never publishes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-pi_version="${1:-0.1.0}"
+pi_version="${1:-0.1.1}"
 pi_build="${2:-$(date -u +%Y%m%d%H%M)}"
 : "${PI_NOTARY_PROFILE:?Set PI_NOTARY_PROFILE to an existing notarytool Keychain profile}"
 [[ "$pi_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$pi_build" =~ ^[0-9]+$ ]] || { echo "Usage: $0 VERSION NUMERIC_BUILD" >&2; exit 2; }

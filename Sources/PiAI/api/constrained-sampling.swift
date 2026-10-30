@@ -160,6 +160,25 @@ public func makeStrictJsonSchema(
     return cloned
 }
 
+/// Returns true for a tool that asks for strict JSON-schema sampling only when possible (`strict: "prefer"`).
+public func prefersJsonSchemaStrictSampling(_ tool: Tool) -> Bool {
+    guard case .some(.some(.jsonSchema(let strict))) = tool.constrainedSampling else { return false }
+    return strict == "prefer"
+}
+
+/// Claude rejects (on the Anthropic API and on Bedrock) a request whose strict tools exceed its limits with one of these
+/// messages. Observed limits: 20 strict tools, and 16 optional or union-typed parameters across all strict tools.
+private let STRICT_TOOL_LIMIT_ERROR_MESSAGES = [
+    "The compiled grammar is too large",
+    "Too many strict tools (",
+    "Schemas contains too many parameters with union types (",
+]
+
+/// Returns true when a provider error message says the request's strict tools exceed the provider's limits.
+public func isStrictToolLimitErrorMessage(_ message: String) -> Bool {
+    STRICT_TOOL_LIMIT_ERROR_MESSAGES.contains { message.contains($0) }
+}
+
 public func getJsonSchemaToolParameters(_ tool: Tool, _ strict: Bool?) throws -> JsonValue {
     strict == true ? try makeStrictJsonSchema(tool.parameters) : tool.parameters
 }

@@ -10,6 +10,8 @@ private let OPENAI_TOOL_CALL_PROVIDERS: Set<String> = ["openai", "openai-codex",
 // OpenAI Responses rejects max_output_tokens below 16: https://github.com/earendil-works/pi/issues/6265
 private let OPENAI_RESPONSES_MIN_OUTPUT_TOKENS = 16
 private let CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage"
+private let CHATGPT_WORKSPACE_LIMIT_HINT =
+    "You've reached your ChatGPT workspace's usage limit. Ask your workspace admin to increase it at admin.openai.com → Workspace → Usage limits."
 // Fixed reasoning.effort while configuration_update items carry the thinking level.
 private let CONFIGURATION_UPDATE_REQUEST_EFFORT = "medium"
 
@@ -258,9 +260,14 @@ public func streamOpenAIResponses(
                 "\(model.provider == "openai" ? "OpenAI" : model.provider) API error"
             )
             // Sign in with ChatGPT shares the subscription's usage limit with other apps.
-            output.errorMessage = errorMessage.contains("subscription_sharing_usage_limit_exceeded")
-                ? "\(errorMessage)\nCheck your ChatGPT usage: \(CHATGPT_USAGE_URL)"
-                : errorMessage
+            // On ChatGPT Business plans, the workspace admin also sets a per-user limit.
+            if errorMessage.contains("subscription_sharing_usage_limit_exceeded") {
+                output.errorMessage = "\(errorMessage)\nCheck your ChatGPT usage: \(CHATGPT_USAGE_URL)"
+            } else if errorMessage.contains("subscription_sharing_workplace_individual_usage_limit_exceeded") {
+                output.errorMessage = "\(errorMessage)\n\(CHATGPT_WORKSPACE_LIMIT_HINT)"
+            } else {
+                output.errorMessage = errorMessage
+            }
             stream.push(.error(reason: output.stopReason, error: output))
             stream.end()
         }

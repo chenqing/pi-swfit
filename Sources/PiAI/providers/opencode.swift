@@ -15,6 +15,6 @@ public func opencodeProvider(models: [AnyModel]? = nil) -> Provider {
             "openai-completions": withOpenCodeSessionHeader(openAICompletionsApi()),
             "openai-responses": withOpenCodeSessionHeader(openAIResponsesApi()),
         ])
-        // Not ported: classifiers ["typesafe-system-one"] (OpenCode Zen serves TypeSafe's System One protocol at /zen/v1/systemone).
+        // Not ported: classifiers ["typesafe-system-one"] (OpenCode Zen serves TypeSafe's System One protocol at /inference/systemone/v1/systemone).
     ))
 }

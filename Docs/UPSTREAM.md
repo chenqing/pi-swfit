@@ -10,6 +10,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 | Resources, skills, native extensions and MCP | `42cb822f1c5d3153069dd0661bfd297424666cf1` |
 | Incremental JSON parsing and client identity | `d5b3de22d0e24a3e9c38a9410d3329b099717283` |
 | Standalone source review, 2026-10-28 | `4ba356228c7fea1524413b1d56f9a31351329575` |
+| pi-ai provider fixes, 2026-10-30 | `f09d01b85` |
 
 `upstream-reference.json` preserves the resource/MCP source blob inventory. `upstream-lock.json` records the reviewed head and exact hashes of selected API/session/CLI/tool sources. These files distinguish a reviewed source from an implemented feature.
 
@@ -35,6 +36,18 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 ## Native navigation backport, 2026-10-29
 
 Reviewed `e65b3b88c08412bb8ffbd21fb5dc5756064a6e5a`: thinking-level mutation and event, tree target semantics and optional branch summaries, and fork-before-user-message behavior. Runtime persistence retains upstream entries; PiHost snapshots the source manager before forking so failed setup cannot replace the leased source. Desktop draft branch positions are native sidecar state. See [SLASH_COMMANDS.md](SLASH_COMMANDS.md) for verified behavior and unported selector/extension features.
+
+## pi-ai provider sync, 2026-10-30
+
+Shared with Pagie's `Vendor/Pi`. Ported upstream ai commits after `16f5f0af4` for the five supported APIs:
+
+- Retry and overflow: cedefc532, 29057ece3, 6e491cfa9, c719d5b08 (ChatGPT workspace limit is non-retryable and gets a hint in openai-responses; Zhipu 1308; status codes only as whole numbers; Codex "stream disconnected"), d3398f826 (LiteLLM "context window exceeded").
+- Google: 7314819f0, a7b94a03f (`const` rewritten to a single-value `enum` in tool schemas).
+- Cost: 7c22a93d0, cae8d69e5 (`UsageCost.totalFromProvider`; OpenRouter-reported cost in openai-completions and anthropic-messages). Replay fixtures expect `"totalFromProvider": false`, which upstream `calculateCost` writes.
+- Anthropic: 3bc6eebac (pending system messages flush after assistant turns with no blocks), e3bc05e87 (managed adaptive effort sends `low`), 842c73170 (strict-tool limit fallback).
+- faux f3fa8bd92, OpenCode comment 177e2ad7e, and the OAuth part of 89c921d8b: one shared `trustedHttpUrl` (`auth/oauth/trusted-url.swift`) for GitHub Copilot, Kimi Code and Meta.
+
+Not applicable here: System One classifiers, pi-messages, Bedrock, Vertex, Mistral, Codex and Radius. Pi Swift installs no builtin model catalog, so upstream model-list changes do not apply; connections name their model ID. `PI_AI_VERSION` stays `1.3.0`.
 
 ## Capability matrix
 

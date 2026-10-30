@@ -1588,6 +1588,8 @@ private func convertTools(
 }
 
 private func parseChunkUsage(
+    // OpenRouter adds billing fields to streamed usage at runtime,
+    // although the OpenAI SDK does not type those fields.
     _ rawUsage: JsonValue,
     _ model: Model
 ) -> Usage {
@@ -1623,6 +1625,9 @@ private func parseChunkUsage(
         cost: UsageCost(input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0)
     )
     calculateCost(model, &usage)
+    if isOpenRouterModel(model) {
+        applyOpenRouterReportedCost(&usage, rawUsage)
+    }
     return usage
 }
 

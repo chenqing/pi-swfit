@@ -94,8 +94,8 @@ struct AnthropicMidConversationEffortTests {
         ])
         #expect(Array(second.messages.prefix(first.messages.count)) == first.messages)
         #expect(second.messages.last == marker("high"))
-        #expect(first.payload["output_config"] == ["effort": "high"])
-        #expect(second.payload["output_config"] == ["effort": "high"])
+        #expect(first.payload["output_config"] == ["effort": "low"])
+        #expect(second.payload["output_config"] == ["effort": "low"])
         #expect(second.payload["thinking"] == [
             "type": "adaptive",
             "display": "summarized",

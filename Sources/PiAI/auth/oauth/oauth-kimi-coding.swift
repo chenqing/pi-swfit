@@ -57,14 +57,6 @@ private func readJson(_ response: FetchResponse) async -> JsonValue? {
     }
 }
 
-/// The verification URI is opened in the user's browser; only http(s) URLs are trusted.
-private func trustedHttpUrl(_ value: String) -> String? {
-    if value.isEmpty { return nil }
-    guard let url = WebURL(value) else { return nil }
-    if url.protocol != "https:" && url.protocol != "http:" { return nil }
-    return url.href
-}
-
 private func stringify(_ json: JsonValue?) -> String { json?.serialized() ?? "null" }
 
 private func startDeviceAuthorization(_ rt: OAuthRuntime, _ oauthHost: String, _ signal: AbortSignal) async throws -> DeviceAuthorization {
@@ -88,10 +80,8 @@ private func startDeviceAuthorization(_ rt: OAuthRuntime, _ oauthHost: String, _
     guard
         let deviceCode = json?["device_code"]?.stringValue,
         let userCode = json?["user_code"]?.stringValue,
-        let rawUri = json?["verification_uri"]?.stringValue,
-        let rawComplete = json?["verification_uri_complete"]?.stringValue,
-        let verificationUri = trustedHttpUrl(rawUri),
-        let verificationUriComplete = trustedHttpUrl(rawComplete)
+        let verificationUri = trustedHttpUrl(json?["verification_uri"]),
+        let verificationUriComplete = trustedHttpUrl(json?["verification_uri_complete"])
     else {
         throw PiError("Invalid Kimi Code device authorization response: \(stringify(json))")
     }

@@ -827,11 +827,7 @@ public func streamAnthropicMessages(
                         let apiError = error as? Anthropic.APIError,
                         apiError.status == 400,
                         apiError.type == "invalid_request_error",
-                        [
-                            "The compiled grammar is too large",
-                            "Too many strict tools (",
-                            "Schemas contains too many parameters with union types (",
-                        ].contains(where: { apiError.message.contains($0) })
+                        isStrictToolLimitErrorMessage(apiError.message)
                     else {
                         throw error
                     }
@@ -1063,6 +1059,11 @@ public func streamAnthropicMessages(
                     output.usage.totalTokens =
                         output.usage.input + output.usage.output + output.usage.cacheRead + output.usage.cacheWrite
                     calculateCost(usageModel, &output.usage)
+                    if isOpenRouterModel(model), let usage = try prop(event, "usage"), jsTruthy(usage) {
+                        // OpenRouter adds billing fields to streamed message_delta usage at runtime,
+                        // although its OpenAPI schema and the Anthropic SDK do not type those fields.
+                        applyOpenRouterReportedCost(&output.usage, usage)
+                    }
                 }
             }
 
@@ -1396,8 +1397,7 @@ private func buildParams(
             disablePreferredStrictTools
         )
         if definitions.enumerated().contains(where: { index, definition in
-            guard case .some(.some(.jsonSchema(let strict))) = tools[index].constrainedSampling else { return false }
-            return definition["strict"] == true && strict == "prefer"
+            definition["strict"] == true && prefersJsonSchemaStrictSampling(tools[index])
         }) {
             hasPreferredStrictTools = true
         }
@@ -1485,7 +1485,10 @@ private func buildParams(
             "display": .string((options?.thinkingDisplay ?? .summarized).rawValue),
             "block_binding": ["prefix_mismatch_behavior": "drop_block"],
         ]
-        params["output_config"] = ["effort": "high"]
+        // Effort markers set the level for every reply. The top-level effort is part of the cached
+        // prompt, so it stays fixed. It is "low" because organizations can cap effort and reject
+        // requests containing any level above the cap.
+        params["output_config"] = ["effort": "low"]
     } else if model.reasoning, let options, options.thinkingEnabled == true {
         // Default to "summarized" so Opus 4.7 and Mythos Preview behave like
         // older Claude 4 models (whose API default is also "summarized").
@@ -1567,7 +1570,9 @@ private func convertMessages(
     var params: [JsonObject] = []
     var assistantLevels: [Int: AnthropicEffort] = [:]
     // Later system messages are held back and emitted directly before the next assistant
-    // message (or at the end of the transcript). Anthropic requires `tool_result` blocks to
+    // message that is sent (or at the end of the transcript). Assistant messages that convert to
+    // no blocks are dropped, so holding past them keeps an update from landing before a user
+    // message (#11091). Anthropic requires `tool_result` blocks to
     // immediately follow their `tool_use`, so a system message between them is rejected; this
     // also mirrors where the managed-effort system messages are inserted. As a result an
     // update placed before a user message in the transcript lands after it on the wire.
@@ -1638,7 +1643,6 @@ private func convertMessages(
                 ])
             }
         case .assistant(let assistant):
-            flushPendingSystemMessages()
             var blocks: [JsonObject] = []
 
             for block in assistant.content {
@@ -1693,6 +1697,7 @@ private func convertMessages(
                 }
             }
             if blocks.count == 0 { continue }
+            flushPendingSystemMessages()
             let messageIndex = params.count
             params.append([
                 "role": "assistant",
@@ -1837,7 +1842,7 @@ private func convertTools(
 ) throws -> [JsonObject] {
     try tools.enumerated().map { index, tool in
         let strict: Bool?
-        if disablePreferredStrictTools, case .some(.some(.jsonSchema(let strictMode))) = tool.constrainedSampling, strictMode == "prefer" {
+        if disablePreferredStrictTools && prefersJsonSchemaStrictSampling(tool) {
             strict = nil
         } else {
             strict = try resolveJsonSchemaStrictSampling(tool, supportsStrictTools, isAnthropicStrictUnsupportedKeyword)

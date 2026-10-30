@@ -416,10 +416,69 @@ private func sanitizeForOpenApi(_ schema: JsonValue) -> JsonValue {
     return .object(result)
 }
 
+/// Schema keywords whose values map names to subschemas, so their keys are not schema keywords.
+private let JSON_SCHEMA_NAME_MAPS: Set<String> = [
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+    "dependentSchemas",
+    "dependencies",
+]
+
+/// Keywords containing a subschema or an array of subschemas, not literal data.
+private let JSON_SCHEMA_SUBSCHEMAS: Set<String> = [
+    "additionalProperties",
+    "unevaluatedProperties",
+    "propertyNames",
+    "items",
+    "prefixItems",
+    "additionalItems",
+    "unevaluatedItems",
+    "contains",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "if",
+    "then",
+    "else",
+    "contentSchema",
+]
+
+/// Rewrite string and number `const` values to single-value `enum`s.
+/// Gemini ignores `const` in `parametersJsonSchema` but honors `enum`.
+func rewriteConstAsEnum(_ schema: JsonValue, _ isNameMap: Bool = false) -> JsonValue {
+    if case .array(let items) = schema { return .array(items.map { rewriteConstAsEnum($0) }) }
+    guard case .object(let object) = schema else { return schema }
+
+    var result = JsonObject()
+    for (key, value) in object {
+        if isNameMap || JSON_SCHEMA_SUBSCHEMAS.contains(key) {
+            result[key] = rewriteConstAsEnum(value)
+        } else if JSON_SCHEMA_NAME_MAPS.contains(key) {
+            result[key] = rewriteConstAsEnum(value, true)
+        } else {
+            result[key] = value
+        }
+    }
+    if !isNameMap, let value = result["const"], result["enum"] == nil {
+        switch value {
+        case .string, .number:
+            result["const"] = nil
+            result["enum"] = .array([value])
+        default:
+            break
+        }
+    }
+    return .object(result)
+}
+
 /// Convert tools to Gemini function declarations format.
 ///
 /// By default uses `parametersJsonSchema` which supports full JSON Schema (including
-/// anyOf, oneOf, const, etc.). Set `useParameters` to true to use the legacy `parameters`
+/// anyOf, oneOf, etc.). Gemini ignores `const` there, so string and number `const`
+/// values are sent as single-value `enum`s. Set `useParameters` to true to use the legacy `parameters`
 /// field instead (OpenAPI 3.03 Schema). This is needed for Cloud Code Assist with Claude
 /// models, where the API translates `parameters` into Anthropic's `input_schema`.
 ///
@@ -442,7 +501,7 @@ public func convertToolsGoogle(
                 if useParameters {
                     declaration["parameters"] = sanitizeForOpenApi(parameters)
                 } else {
-                    declaration["parametersJsonSchema"] = parameters
+                    declaration["parametersJsonSchema"] = rewriteConstAsEnum(parameters)
                 }
                 return .object(declaration)
             }),

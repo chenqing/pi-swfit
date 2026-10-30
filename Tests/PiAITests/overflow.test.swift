@@ -125,6 +125,15 @@ struct OverflowTests {
         #expect(isContextOverflow(message, 131072) == true)
     }
 
+    @Test("detects LiteLLM pre-call ContextWindowExceededError")
+    func liteLLMPreCall() {
+        // Regression for #11492.
+        let message = createErrorMessage(
+            "400: {\"message\":\"litellm.ContextWindowExceededError: litellm.BadRequestError: litellm._pre_call_checks: Context Window exceeded for given call. No models have context window large enough for this call.\nModel=Qwen3.8-Flash-Next, Max Input Tokens=262144, Got=265262\nmodel=Qwen3.8-Flash-Next. context_window_fallbacks=None. fallbacks=[].\"}"
+        )
+        #expect(isContextOverflow(message, 262144) == true)
+    }
+
     @Test("detects OpenAI-compatible parenthesized maximum context length errors")
     func parenthesizedMaxContext() {
         let message = createErrorMessage(

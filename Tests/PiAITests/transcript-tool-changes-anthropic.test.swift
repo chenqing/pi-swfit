@@ -172,6 +172,37 @@ struct TranscriptToolChangesAnthropicTests {
         #expect((payload["messages"]?.arrayValue?.last?["content"]?.arrayValue ?? []).map { $0["type"] } == ["text"])
     }
 
+    // #11091
+    @Test("holds an Anthropic update past an assistant message that converts to no blocks")
+    func holdsUpdatePastDroppedAssistant() async throws {
+        func reply(_ text: String, _ provider: String, _ api: String, _ model: String) -> Message {
+            .assistant(AssistantMessage(content: [.text(TextContent(text: text))], api: api, provider: provider, model: model,
+                                        stopReason: .stop, timestamp: 3))
+        }
+        let messages: [Message] = [
+            .system(SystemMessage(content: "base prompt", timestamp: 0)),
+            .user(UserMessage(content: "hi", timestamp: 1)),
+            .system(SystemMessage(content: "updated guidance", timestamp: 2)),
+            // Another model's empty reply: Anthropic rejects empty text blocks, so it is dropped.
+            reply("", "openai-codex", "openai-codex-responses", "gpt-x"),
+            .user(UserMessage(content: "again", timestamp: 4)),
+        ]
+        func roles(_ payload: JsonObject) -> [String] {
+            (payload["messages"]?.arrayValue ?? []).compactMap { $0["role"]?.stringValue }
+        }
+
+        // No later assistant: the update goes at the end.
+        let atEnd = try await capturePayload(anthropicNativeModel, messages)
+        #expect(roles(atEnd) == ["user", "user", "system"])
+
+        // A later assistant that is sent: the update goes directly before it.
+        let beforeAssistant = try await capturePayload(anthropicNativeModel, messages + [
+            reply("answer", anthropicNativeModel.provider, anthropicNativeModel.api, anthropicNativeModel.id),
+            .user(UserMessage(content: "third", timestamp: 5)),
+        ])
+        #expect(roles(beforeAssistant) == ["user", "user", "system", "assistant", "user"])
+    }
+
     @Test("folds Anthropic updates into the system prompt without native support")
     func foldsUpdatesWithoutNativeSupport() async throws {
         let model = anthropicModel("claude-sonnet-4-5", "Claude Sonnet 4.5")

@@ -59,14 +59,6 @@ private func errorDetail(_ json: JsonValue?) -> String {
     return ""
 }
 
-/// The verification URI is opened in the user's browser; only http(s) URLs are trusted.
-private func trustedHttpUrl(_ value: JsonValue?) -> String? {
-    guard case .string(let string)? = value, !string.isEmpty else { return nil }
-    guard let url = WebURL(string) else { return nil }
-    if url.protocol != "https:" && url.protocol != "http:" { return nil }
-    return url.href
-}
-
 private func positiveNumber(_ value: JsonValue?) -> Double? {
     if case .number(let number)? = value, number.isFinite, number > 0 { return number }
     return nil

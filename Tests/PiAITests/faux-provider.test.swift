@@ -307,15 +307,18 @@ struct FauxProviderTests {
         let user = { (content: String) in userMessage(content, timestamp: 1) }
 
         // Prompt texts: "user:hello world" (16 characters), then 16 + 2 + "user:next" (9) = 27.
-        _ = await complete(registration, registration.getModel(), Context(messages: [user("hello world")]), options)
+        let first = await complete(registration, registration.getModel(), Context(messages: [user("hello world")]), options)
+        #expect(first.usage.input == 0)
+        #expect(first.usage.cacheRead == 0)
+        #expect(first.usage.cacheWrite == 4)
         let extended = await complete(registration, registration.getModel(), Context(messages: [user("hello world"), user("next")]), options)
-        #expect(extended.usage.input == 3)
+        #expect(extended.usage.input == 0)
         #expect(extended.usage.cacheRead == 4)
         #expect(extended.usage.cacheWrite == 3)
 
         // The first message now differs after "user:hello w" (12 characters): "user:hello wide" + 2 + 9 = 26.
         let edited = await complete(registration, registration.getModel(), Context(messages: [user("hello wide"), user("next")]), options)
-        #expect(edited.usage.input == 4)
+        #expect(edited.usage.input == 0)
         #expect(edited.usage.cacheRead == 3)
         #expect(edited.usage.cacheWrite == 4)
     }

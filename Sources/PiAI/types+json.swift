@@ -485,20 +485,23 @@ extension SystemMessageContent: JsonConvertible {
 
 extension UsageCost: JsonConvertible {
     public var json: JsonValue {
-        [
+        var o: JsonObject = [
             "input": .number(input),
             "output": .number(output),
             "cacheRead": .number(cacheRead),
             "cacheWrite": .number(cacheWrite),
             "total": .number(total),
         ]
+        if let totalFromProvider { o["totalFromProvider"] = .bool(totalFromProvider) }
+        return .object(o)
     }
     public init(json: JsonValue) throws {
         let t = "Usage.cost"
         let o = try object(json, t)
         self.init(
             input: try number(o, "input", t), output: try number(o, "output", t), cacheRead: try number(o, "cacheRead", t),
-            cacheWrite: try number(o, "cacheWrite", t), total: try number(o, "total", t)
+            cacheWrite: try number(o, "cacheWrite", t), total: try number(o, "total", t),
+            totalFromProvider: try optionalBool(o, "totalFromProvider", t)
         )
     }
 }

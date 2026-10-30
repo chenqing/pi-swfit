@@ -242,19 +242,14 @@ private func startDeviceFlow(_ rt: OAuthRuntime, _ domain: String, _ signal: Abo
         throw PiError("Invalid device code response fields")
     }
 
-    // The verification URI is opened in the user's browser and to prevent `open` from
-    // opening an executable or similar, we force it to be a URL.
-    guard let parsedUri = WebURL(verificationUri) else {
-        throw PiError("Untrusted verification_uri in device code response")
-    }
-    if parsedUri.protocol != "https:" && parsedUri.protocol != "http:" {
+    guard let trustedVerificationUri = trustedHttpUrl(.string(verificationUri)) else {
         throw PiError("Untrusted verification_uri in device code response")
     }
 
     return DeviceCodeResponse(
         device_code: deviceCode,
         user_code: userCode,
-        verification_uri: parsedUri.href,
+        verification_uri: trustedVerificationUri,
         interval: interval?.doubleValue,
         expires_in: expiresIn
     )

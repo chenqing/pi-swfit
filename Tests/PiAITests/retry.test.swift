@@ -132,6 +132,22 @@ struct RetryTests {
         #expect(isRetryableAssistantError(errorMsg(errorMessage)) == false)
     }
 
+    @Test("keeps the ChatGPT Business workspace usage limit non-retryable")
+    func workspaceUsageLimit() {
+        let errorMessage =
+            "OpenAI API error (429): {\"code\":\"subscription_sharing_workplace_individual_usage_limit_exceeded\",\"message\":\"Usage limit reached.\"}"
+        #expect(isRetryableAssistantError(errorMsg(errorMessage)) == false)
+    }
+
+    // Swift-only: checks the escaping of the Zhipu 1308 and Codex CLI patterns (upstream has no test).
+    @Test("keeps the Zhipu usage limit (code 1308) non-retryable")
+    func zhipuUsageLimit() {
+        #expect(isRetryableAssistantError(errorMsg("429 {\"error\":{\"code\":\"1308\",\"message\":\"Usage limit reached\"}}")) == false)
+        #expect(isRetryableAssistantError(errorMsg("429 {\"error\":{\"code\": 1308}}")) == false)
+        #expect(isRetryableAssistantError(errorMsg("429 {\"error\":{\"code\":\"13080\"}}")) == true)
+        #expect(isRetryableAssistantError(errorMsg("stream disconnected before completion: stream closed before response.completed")) == true)
+    }
+
     @Test("retries temporary ChatGPT subscription errors: %s", arguments: [
         "subscription_sharing_usage_unavailable: Usage cannot be checked.",
         "subscription_sharing_user_unavailable: User cannot be loaded.",
@@ -147,6 +163,15 @@ struct RetryTests {
         #expect(isRetryableAssistantError(errorMsg("520 status code (no body)")) == true)
         #expect(isRetryableAssistantError(errorMsg("524 status code (no body)")) == true)
         #expect(isRetryableAssistantError(fauxAssistantMessage("not an error")) == false)
+    }
+
+    @Test("does not match status codes inside ids or longer numbers: %s", arguments: [
+        // Regression for #11057: status codes inside ids or other numbers are not status codes.
+        "401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011CU503xyz\"}",
+        "400 image exceeds 5 MB maximum: 5316784 bytes > 5242880 bytes",
+    ])
+    func statusCodesInsideNumbers(_ errorMessage: String) {
+        #expect(isRetryableAssistantError(errorMsg(errorMessage)) == false)
     }
 
     // MARK: retryDelayMs

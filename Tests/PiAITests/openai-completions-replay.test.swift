@@ -488,7 +488,7 @@ data: {"choices":[],"created":1792562484,"id":"chatcmpl-msg_20261021140119ab0abb
 data: [DONE]
 """# + "\n\n",
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"thinking","thinking":"Simple arithmetic: 17 * 23 = 391. The user wants only the number.","thinkingSignature":"reasoning_content"},{"type":"text","text":"391"}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":220,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":244,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","responseId":"chatcmpl-msg_20261021140119ab0abbb5373248c7","responseModel":"GLM-5.3-Flash","rawStopReason":"stop"}
+{"role":"assistant","content":[{"type":"thinking","thinking":"Simple arithmetic: 17 * 23 = 391. The user wants only the number.","thinkingSignature":"reasoning_content"},{"type":"text","text":"391"}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":220,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":244,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"stop","responseId":"chatcmpl-msg_20261021140119ab0abbb5373248c7","responseModel":"GLM-5.3-Flash","rawStopReason":"stop"}
 """#,
         expectedEvents: ["start", "thinking_start", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "text_start", "text_delta", "text_delta", "thinking_end", "text_end", "done"]
     ),
@@ -522,7 +522,7 @@ data: {"choices":[],"created":1792562489,"id":"chatcmpl-msg_202610211401243e8bbf
 data: [DONE]
 """# + "\n\n",
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"toolCall","id":"call_fd4d5436964845e3a3378554","name":"ls","arguments":{"path":"."}}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":230,"output":11,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":241,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","responseId":"chatcmpl-msg_202610211401243e8bbf7c7b1a416d","responseModel":"GLM-5.3-Flash","rawStopReason":"tool_calls"}
+{"role":"assistant","content":[{"type":"toolCall","id":"call_fd4d5436964845e3a3378554","name":"ls","arguments":{"path":"."}}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":230,"output":11,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":241,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"toolUse","responseId":"chatcmpl-msg_202610211401243e8bbf7c7b1a416d","responseModel":"GLM-5.3-Flash","rawStopReason":"tool_calls"}
 """#,
         expectedEvents: ["start", "toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_end", "done"]
     ),
@@ -576,7 +576,7 @@ data: {"choices":[],"created":1792562493,"id":"chatcmpl-msg_2026102114012973d95b
 data: [DONE]
 """# + "\n\n",
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"toolCall","id":"call_5166d8b8caec4c39b392116e","name":"read","arguments":{"path":"a.txt"}},{"type":"toolCall","id":"call_2270a14e9de740268fe78ab3","name":"read","arguments":{"path":"b.txt"}}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":250,"output":22,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":272,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","responseId":"chatcmpl-msg_2026102114012973d95b36e8814af4","responseModel":"GLM-5.3-Flash","rawStopReason":"tool_calls"}
+{"role":"assistant","content":[{"type":"toolCall","id":"call_5166d8b8caec4c39b392116e","name":"read","arguments":{"path":"a.txt"}},{"type":"toolCall","id":"call_2270a14e9de740268fe78ab3","name":"read","arguments":{"path":"b.txt"}}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":250,"output":22,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":272,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"toolUse","responseId":"chatcmpl-msg_2026102114012973d95b36e8814af4","responseModel":"GLM-5.3-Flash","rawStopReason":"tool_calls"}
 """#,
         expectedEvents: ["start", "toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_end", "toolcall_end", "done"]
     ),
@@ -642,7 +642,7 @@ data: {"choices":[],"created":1792562498,"id":"chatcmpl-msg_2026102114013375565e
 data: [DONE]
 """# + "\n\n",
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"text","text":"The workspace contains two files:\n\n- **a.txt**: `alpha`\n- **b.txt**: `beta`"}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":282,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":306,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","responseId":"chatcmpl-msg_2026102114013375565e752a5d4631","responseModel":"GLM-5.3-Flash","rawStopReason":"stop"}
+{"role":"assistant","content":[{"type":"text","text":"The workspace contains two files:\n\n- **a.txt**: `alpha`\n- **b.txt**: `beta`"}],"api":"openai-completions","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":282,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":306,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"stop","responseId":"chatcmpl-msg_2026102114013375565e752a5d4631","responseModel":"GLM-5.3-Flash","rawStopReason":"stop"}
 """#,
         expectedEvents: ["start", "text_start", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_end", "done"]
     ),

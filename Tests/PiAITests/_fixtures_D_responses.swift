@@ -130,7 +130,7 @@ data: {"response":{"created_at":1792562527,"id":"resp_msg_202610211402013d6741f2
 
 """#,
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"thinking","thinking":"The user wants 17*23. That's 391. They said answer with only the number.","thinkingSignature":"{\"id\":\"rs_18e0761f042ebcc80000002d\",\"status\":\"completed\",\"summary\":[{\"text\":\"The user wants 17*23. That's 391. They said answer with only the number.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\"}"},{"type":"text","text":"391","textSignature":"{\"v\":1,\"id\":\"msg_18e0761f302acee80000002e\"}"}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":220,"output":26,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":246,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","responseId":"resp_msg_202610211402013d6741f296944220","rawStopReason":"completed"}
+{"role":"assistant","content":[{"type":"thinking","thinking":"The user wants 17*23. That's 391. They said answer with only the number.","thinkingSignature":"{\"id\":\"rs_18e0761f042ebcc80000002d\",\"status\":\"completed\",\"summary\":[{\"text\":\"The user wants 17*23. That's 391. They said answer with only the number.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\"}"},{"type":"text","text":"391","textSignature":"{\"v\":1,\"id\":\"msg_18e0761f302acee80000002e\"}"}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":220,"output":26,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":246,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"stop","responseId":"resp_msg_202610211402013d6741f296944220","rawStopReason":"completed"}
 """#,
         expectedUpdateTypes: ["thinking_start", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_delta", "thinking_end", "text_start", "text_delta", "text_delta", "text_end"]
     ),
@@ -175,7 +175,7 @@ data: {"response":{"created_at":1792562532,"id":"resp_msg_20261021140208c5ef063e
 
 """#,
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"toolCall","id":"call_4897cdc98eed4d0a96d7b0cd|fc_18e07620471d93280000002f","name":"ls","arguments":{"path":"."}}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":230,"output":11,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":241,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","responseId":"resp_msg_20261021140208c5ef063e3d564186","rawStopReason":"completed"}
+{"role":"assistant","content":[{"type":"toolCall","id":"call_4897cdc98eed4d0a96d7b0cd|fc_18e07620471d93280000002f","name":"ls","arguments":{"path":"."}}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":230,"output":11,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":241,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"toolUse","responseId":"resp_msg_20261021140208c5ef063e3d564186","rawStopReason":"completed"}
 """#,
         expectedUpdateTypes: ["toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_end"]
     ),
@@ -256,7 +256,7 @@ data: {"response":{"created_at":1792562537,"id":"resp_msg_20261021140212a61f6ba2
 
 """#,
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"toolCall","id":"call_d9a469d4788e4ae5851cd697|fc_18e076216874f49800000030","name":"read","arguments":{"path":"a.txt"}},{"type":"toolCall","id":"call_9b8b90cc2f1f4ad78b562d4a|fc_18e0762170e2078800000031","name":"read","arguments":{"path":"b.txt"}}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":250,"output":22,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":272,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"toolUse","responseId":"resp_msg_20261021140212a61f6ba2a275443f","rawStopReason":"completed"}
+{"role":"assistant","content":[{"type":"toolCall","id":"call_d9a469d4788e4ae5851cd697|fc_18e076216874f49800000030","name":"read","arguments":{"path":"a.txt"}},{"type":"toolCall","id":"call_9b8b90cc2f1f4ad78b562d4a|fc_18e0762170e2078800000031","name":"read","arguments":{"path":"b.txt"}}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":250,"output":22,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":272,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"toolUse","responseId":"resp_msg_20261021140212a61f6ba2a275443f","rawStopReason":"completed"}
 """#,
         expectedUpdateTypes: ["toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_end", "toolcall_start", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_delta", "toolcall_end"]
     ),
@@ -358,7 +358,7 @@ data: {"response":{"created_at":1792562542,"id":"resp_msg_20261021140217c3cb8958
 
 """#,
         expectedMessage: #"""
-{"role":"assistant","content":[{"type":"text","text":"The workspace contains two files:\n\n- **a.txt**: `alpha`\n- **b.txt**: `beta`","textSignature":"{\"v\":1,\"id\":\"msg_18e076228bcb3b1800000032\"}"}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":282,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":306,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"stop","responseId":"resp_msg_20261021140217c3cb895865d54701","rawStopReason":"completed"}
+{"role":"assistant","content":[{"type":"text","text":"The workspace contains two files:\n\n- **a.txt**: `alpha`\n- **b.txt**: `beta`","textSignature":"{\"v\":1,\"id\":\"msg_18e076228bcb3b1800000032\"}"}],"api":"openai-responses","provider":"openai","model":"zcode/GLM-5.3-Flash","usage":{"input":282,"output":24,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":306,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0,"totalFromProvider":false}},"stopReason":"stop","responseId":"resp_msg_20261021140217c3cb895865d54701","rawStopReason":"completed"}
 """#,
         expectedUpdateTypes: ["text_start", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_delta", "text_end"]
     ),

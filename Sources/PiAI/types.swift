@@ -309,9 +309,13 @@ public struct UsageCost: Sendable, Hashable {
     public var output: Double = 0
     public var cacheRead: Double = 0
     public var cacheWrite: Double = 0
+    /// Best available total: provider-reported billed cost when supported, otherwise the catalog estimate.
     public var total: Double = 0
-    public init(input: Double = 0, output: Double = 0, cacheRead: Double = 0, cacheWrite: Double = 0, total: Double = 0) {
+    /// True when `total` is the billed cost reported by the provider. False when it is a catalog estimate; absent also means false.
+    public var totalFromProvider: Bool?
+    public init(input: Double = 0, output: Double = 0, cacheRead: Double = 0, cacheWrite: Double = 0, total: Double = 0, totalFromProvider: Bool? = nil) {
         self.input = input; self.output = output; self.cacheRead = cacheRead; self.cacheWrite = cacheWrite; self.total = total
+        self.totalFromProvider = totalFromProvider
     }
 }
 
