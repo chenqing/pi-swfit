@@ -17,4 +17,6 @@ Drag the app from the DMG into `/Applications`. Its CLI is `/Applications/Pi Swi
 
 ## Published release
 
+[Pi Swift v0.1.1](https://github.com/chenqing/pi-swfit/releases/tag/v0.1.1) distributes build `2026103001` (source `41f9e79`) with the pi-ai provider sync. Earlier:
+
 [Pi Swift v0.1.0](https://github.com/chenqing/pi-swfit/releases/tag/v0.1.0) distributes build `2026102906` for macOS 14+ on Apple Silicon. The tag points to the binary's source revision `004b60216fb63e85b771c81129f4dd0ac6cc3c50`; subsequent commits record installation validation and download instructions. Assets contain the notarized DMG and `SHA256SUMS`. A fresh download was checked against the local validated DMG before publication.
