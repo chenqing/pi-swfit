@@ -86,6 +86,30 @@ struct NavigationTests {
         #expect(restored.manager.getEntries().filter { $0.messageEntry?.message.role == "user" }.count == 1)
         await restored.shutdown()
     }
+    @Test func newBranchRecordsLiveThinkingBeforePromptAndRestoresIt() async throws {
+        let f = NavigationFixture(); defer { f.cleanup() }
+        let host = try await f.open()
+        try await host.session.setThinkingLevel(.low)
+        try await host.session.prompt("first")
+        let branchPoint = try #require(host.manager.getLeafId())
+        try await host.session.setThinkingLevel(.high)
+        try await host.session.prompt("old branch")
+        _ = try await host.session.navigateTree(branchPoint)
+        #expect(host.manager.buildSessionContext().thinkingLevel == "low")
+        #expect(await host.session.thinkingLevel == .high)
+        try await host.session.prompt("new branch")
+        let changes = host.manager.getBranch().filter { $0.type == "thinking_level_change" }.count
+        #expect(host.manager.buildSessionContext().thinkingLevel == "high")
+        try await host.session.prompt("same level")
+        #expect(host.manager.getBranch().filter { $0.type == "thinking_level_change" }.count == changes)
+        let file = try #require(host.manager.getSessionFile())
+        await host.shutdown()
+        let restored = try await CodingSessionHost.open(cwd: f.root.path, paths: f.paths,
+            manager: SessionManager.open(file), options: AgentOptions(initialState: AgentInitialState(model: f.model), streamFn: f.stream))
+        #expect(await restored.session.thinkingLevel == .high)
+        await restored.shutdown()
+    }
+
     @Test func treeKeepsBothBranchesAndReturnsUserTextWithoutSending() async throws {
         let f = NavigationFixture(); defer { f.cleanup() }
         let host = try await f.open()

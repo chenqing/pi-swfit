@@ -31,6 +31,7 @@ final class LoopbackHTTPServer: Sendable {
 
     private struct State {
         var connections: [ObjectIdentifier: NWConnection] = [:]
+        var handling: Set<ObjectIdentifier> = []
         var closed = false
         var onError: (@Sendable (any Error) -> Void)?
         var port = 0
@@ -126,13 +127,14 @@ final class LoopbackHTTPServer: Sendable {
         fn?(error)
     }
 
-    /// `server.close()`: stop accepting connections. In-flight requests still get their response.
+    /// Stop accepting connections and close spare browser sockets. Active callbacks finish their response.
     func close() {
-        let alreadyClosed = state.withLock { s -> Bool in
-            defer { s.closed = true }
-            return s.closed
+        let idle = state.withLock { s -> [NWConnection] in
+            s.closed = true
+            return s.connections.filter { !s.handling.contains($0.key) }.map(\.value)
         }
-        if !alreadyClosed { listener.cancel() }
+        listener.cancel()
+        idle.forEach { $0.cancel() }
     }
 
     /// Network.framework releases the listening socket asynchronously. Wait for cancellation
@@ -145,7 +147,7 @@ final class LoopbackHTTPServer: Sendable {
     /// `server.closeAllConnections()`.
     func closeAllConnections() {
         let connections = state.withLock { s -> [NWConnection] in
-            defer { s.connections = [:] }
+            defer { s.connections = [:]; s.handling = [] }
             return Array(s.connections.values)
         }
         connections.forEach { $0.cancel() }
@@ -164,7 +166,9 @@ final class LoopbackHTTPServer: Sendable {
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .failed, .cancelled:
-                self?.state.withLock { _ = $0.connections.removeValue(forKey: id) }
+                self?.state.withLock { s in
+                    s.connections.removeValue(forKey: id); s.handling.remove(id)
+                }
             default:
                 break
             }
@@ -195,6 +199,13 @@ final class LoopbackHTTPServer: Sendable {
     }
 
     private func handle(_ connection: NWConnection, head: String) {
+        let accepted = state.withLock { s in
+            guard !s.closed else { return false }
+            s.handling.insert(ObjectIdentifier(connection))
+            return true
+        }
+        guard accepted else { connection.cancel(); return }
+
         let requestLine = head.split(separator: "\r\n", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
         let parts = requestLine.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard parts.count >= 2 else {

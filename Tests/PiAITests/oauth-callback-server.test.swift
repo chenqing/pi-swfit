@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Testing
 @testable import PiAI
 
@@ -31,6 +32,36 @@ private func start(
 }
 
 @Suite(.serialized) struct OAuthCallbackServerTests {
+    @Test func closeDropsSpareBrowserSocketsWithoutDroppingActiveResponses() async throws {
+        let entered = GGate(), release = GGate()
+        let server = try await LoopbackHTTPServer.listen(host: "127.0.0.1", port: 0) { _ in
+            entered.open(); await release.wait()
+            return .init(status: 200, headers: [], body: "callback finished")
+        }
+        defer { release.open(); server.closeAllConnections(); server.close() }
+        let spare = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: UInt16(server.port))!, using: .tcp)
+        let ready = Locked(false), ended = Locked(false)
+        spare.stateUpdateHandler = { state in
+            if case .ready = state { ready.withLock { $0 = true } }
+        }
+        spare.start(queue: DispatchQueue(label: "pi-test-spare-callback"))
+        defer { spare.cancel() }
+        for _ in 0..<200 where !ready.current { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(ready.current)
+        spare.receive(minimumIncompleteLength: 1, maximumLength: 4096) { _, _, complete, error in
+            if complete || error != nil { ended.withLock { $0 = true } }
+        }
+        let request = Task { try await oauthLoopbackGet("http://127.0.0.1:\(server.port)/callback") }
+        await entered.wait()
+        server.close()
+        for _ in 0..<200 where !ended.current { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(ended.current)
+        release.open()
+        let response = try await request.value
+        #expect(response.status == 200)
+        #expect(response.body == "callback finished")
+    }
+
     @Test func closedListenerCanImmediatelyReuseItsPort() async throws {
         var port = 0
         for _ in 0..<20 {

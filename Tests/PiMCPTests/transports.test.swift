@@ -7,8 +7,8 @@ import Darwin
 #endif
 
 @Suite("Pi MCP transports") struct PiMCPTransportTests {
-    @Test func sseFraming() throws {
-        let text = "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"result\":\"你好\"}\r\n\r\n"
+    @Test(arguments: ["\r", "\n", "\r\n"]) func sseFraming(_ newline: String) throws {
+        let text = "event: message\(newline)data: {\"jsonrpc\":\"2.0\",\"result\":\"你好\"}\(newline)\(newline)"
         var decoder = McpSSEDecoder(maxMessageBytes: 1024), messages: [String] = []
         for byte in text.utf8 { messages += try decoder.feed(Data([byte])) }
         #expect(messages.count == 1)
@@ -16,6 +16,24 @@ import Darwin
         var bounded = McpSSEDecoder(maxMessageBytes: 8)
         #expect(throws: PiError.self) { try bounded.feed(Data("data: too long a line".utf8)) }
     }
+    @Test(arguments: ["application/json", "text/event-stream"])
+    func oversizedResponseCancelsBodyWithoutRetry(_ contentType: String) async throws {
+        let cancelled = Locked(false), calls = Locked(0)
+        let transport = StreamableHttpTransport(options: .init(url: URL(string: "https://fixture.invalid/mcp")!, maxMessageBytes: 64, fetch: { _ in
+            calls.withLock { $0 += 1 }
+            let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+            continuation.yield(Data(repeating: 120, count: 65))
+            return .init(status: 200, headers: Headers(["Content-Type": contentType]), body: ResponseBody(stream, cancel: {
+                cancelled.withLock { $0 = true }; continuation.finish()
+            }))
+        }))
+        try await transport.start(events: .init(onMessage: { _ in Issue.record("oversized message delivered") }, onError: { _ in }, onClose: {}))
+        await #expect(throws: PiError.self) { try await transport.send(["id": 1, "method": "tools/call"], signal: nil) }
+        #expect(cancelled.current)
+        #expect(calls.current == 1)
+        await transport.close()
+    }
+
     @Test func httpSessionHeadersAndStructuredOnlyResult() async throws {
         let requests = Locked<[FetchRequest]>([])
         let url = try #require(URL(string: "https://fixture.invalid/mcp"))
@@ -191,7 +209,7 @@ import Darwin
         for _ in 0..<100 where kill(pid, 0) == 0 { try await Task.sleep(for: .milliseconds(10)) }
         #expect(kill(pid, 0) == -1 && errno == ESRCH)
     }
-    @Test func stdioClosesDescendantProcessGroup() async throws {
+    @Test(arguments: [false, true]) func stdioClosesDescendantProcessGroup(_ parentExits: Bool) async throws {
         let program = #"""
         import os, signal, time, sys
         child=os.fork()
@@ -199,9 +217,10 @@ import Darwin
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
             while True: time.sleep(1)
         print(child, file=sys.stderr, flush=True)
+        if sys.argv[1] == "exit": sys.exit(0)
         for line in sys.stdin: pass
         """#
-        let transport = StdioTransport(options: .init(command: "/usr/bin/python3", args: ["-u", "-c", program], cwd: FileManager.default.temporaryDirectory.path, closeTimeoutMs: 100))
+        let transport = StdioTransport(options: .init(command: "/usr/bin/python3", args: ["-u", "-c", program, parentExits ? "exit" : "wait"], cwd: FileManager.default.temporaryDirectory.path, closeTimeoutMs: 100))
         try await transport.start(events: .init(onMessage: { _ in }, onError: { _ in }, onClose: {}))
         var child: Int32?
         for _ in 0..<100 {

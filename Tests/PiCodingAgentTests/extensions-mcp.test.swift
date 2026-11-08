@@ -106,6 +106,50 @@ private func eventually(_ predicate: () async -> Bool) async throws {
 }
 
 @Suite("Pi native extensions and MCP sessions") struct PiExtensionMcpTests {
+    @Test func shutdownPersistsAbortedToolResultBeforeDisconnecting() async throws {
+        let fixture = try ExtensionFixture(); defer { fixture.cleanup() }
+        let started = Locked(false)
+        let tool = AgentTool(name: "wait", label: "wait", description: "wait", parameters: ["type": "object"]) { _, _, signal, _ in
+            started.withLock { $0 = true }
+            while signal?.aborted != true { try await Task.sleep(for: .milliseconds(5)) }
+            throw AbortError()
+        }
+        let manager = try SessionManager.create(fixture.cwd, fixture.agentDir)
+        let created = try await fixture.session(manager: manager, options: testAgentOptions(call: "wait", tools: [tool]))
+        let running = Task { try await created.session.prompt("run") }
+        try await eventually { started.current }
+        await created.session.shutdown()
+        _ = try await running.value
+        let file = try #require(created.session.sessionFile)
+        let messages = try SessionManager.open(file).buildSessionContext().messages
+        let results = messages.compactMap { message -> ToolResultMessage? in
+            if case .toolResult(let result) = message { return result }; return nil
+        }
+        #expect(results.count == 1)
+        #expect(results.first?.toolCallId == "call-1")
+        #expect(results.first?.isError == true)
+    }
+
+    @Test func promptPreflightBlocksTreeNavigationAndResourceReload() async throws {
+        let fixture = try ExtensionFixture(); defer { fixture.cleanup() }
+        let entered = Locked(false), release = Locked(false)
+        let ext = NativeExtension(id: "hold-input", onInput: { _, _, _ in
+            entered.withLock { $0 = true }
+            while !release.current { try await Task.sleep(for: .milliseconds(5)) }
+            return .continueInput
+        })
+        let created = try await fixture.session(extensions: [ext])
+        let target = try created.session.sessionManager.appendMessage(AgentMessage.user(.init(content: "seed")))
+        let run = Task { try await created.session.prompt("next") }
+        defer { release.withLock { $0 = true } }
+        try await eventually { entered.current }
+        await #expect(throws: PiError.self) { _ = try await created.session.navigateTree(target) }
+        await #expect(throws: PiError.self) { try await created.session.reloadResources() }
+        release.withLock { $0 = true }
+        try await run.value
+        await created.session.shutdown()
+    }
+
     @Test func numericProgressReachesToolUpdatesWithoutPrivateMetadata() async throws {
         let fixture = try ExtensionFixture(); defer { fixture.cleanup() }
         try fixture.config(#"{"mcpServers":{"sample":{"command":"unused","exposure":"direct"}}}"#)

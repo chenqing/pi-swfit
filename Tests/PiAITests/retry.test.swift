@@ -174,6 +174,12 @@ struct RetryTests {
         #expect(isRetryableAssistantError(errorMsg(errorMessage)) == false)
     }
 
+    @Test("retries the specific Magpie interrupted reply error without matching unrelated cut-short errors")
+    func magpieInterruptedReply() {
+        #expect(isRetryableAssistantError(errorMsg("Claude Code's stream from Anthropic was cut short after the reply had begun")))
+        #expect(!isRetryableAssistantError(errorMsg("input was cut short")))
+    }
+
     // MARK: retryDelayMs
 
     @Test("caps agent retry delay")

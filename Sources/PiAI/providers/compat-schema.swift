@@ -435,6 +435,8 @@ public struct OpenAICompletionsCompat: Sendable, Hashable {
     public var requiresToolResultName: Bool?
     /// Whether a user message after tool results requires an assistant message in between. Default: auto-detected from URL.
     public var requiresAssistantAfterToolResult: Bool?
+    /// Send tools: [] with tool history for legacy proxies. Default: false.
+    public var requiresToolsWithToolHistory: Bool?
     /// Whether thinking blocks must be converted to text blocks with <thinking> delimiters. Default: auto-detected from URL.
     public var requiresThinkingAsText: Bool?
     /// Whether all replayed assistant messages must include an empty reasoning_content field when reasoning is enabled. Default: auto-detected from URL.
@@ -496,7 +498,7 @@ public struct OpenAICompletionsCompat: Sendable, Hashable {
 
     private static let keys: Set<String> = [
         "supportsStore", "supportsDeveloperRole", "supportsReasoningEffort", "supportsUsageInStreaming", "supportsFinishReason",
-        "maxTokensField", "requiresToolResultName", "requiresAssistantAfterToolResult", "requiresThinkingAsText",
+        "maxTokensField", "requiresToolResultName", "requiresAssistantAfterToolResult", "requiresToolsWithToolHistory", "requiresThinkingAsText",
         "requiresReasoningContentOnAssistantMessages", "thinkingFormat", "chatTemplateKwargs", "chatTemplateArgs",
         "openRouterRouting", "vercelGatewayRouting", "zaiToolStream", "thinkingTokenBudgetField", "supportsThinkingTokenBudget",
         "supportsOpenAIGrammarTools", "supportsMidConvoSystemMessages", "supportsMidConvoToolAdditions", "supportsStrictMode",
@@ -513,6 +515,7 @@ public struct OpenAICompletionsCompat: Sendable, Hashable {
         maxTokensField = compatEnum(o, "maxTokensField")
         requiresToolResultName = compatBool(o, "requiresToolResultName")
         requiresAssistantAfterToolResult = compatBool(o, "requiresAssistantAfterToolResult")
+        requiresToolsWithToolHistory = compatBool(o, "requiresToolsWithToolHistory")
         requiresThinkingAsText = compatBool(o, "requiresThinkingAsText")
         requiresReasoningContentOnAssistantMessages = compatBool(o, "requiresReasoningContentOnAssistantMessages")
         thinkingFormat = compatEnum(o, "thinkingFormat")
@@ -545,6 +548,7 @@ public struct OpenAICompletionsCompat: Sendable, Hashable {
         put(&o, "maxTokensField", maxTokensField)
         put(&o, "requiresToolResultName", requiresToolResultName)
         put(&o, "requiresAssistantAfterToolResult", requiresAssistantAfterToolResult)
+        put(&o, "requiresToolsWithToolHistory", requiresToolsWithToolHistory)
         put(&o, "requiresThinkingAsText", requiresThinkingAsText)
         put(&o, "requiresReasoningContentOnAssistantMessages", requiresReasoningContentOnAssistantMessages)
         put(&o, "thinkingFormat", thinkingFormat)

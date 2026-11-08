@@ -55,9 +55,12 @@ public actor StreamableHttpTransport: McpTransport {
         let response = try await options.fetch(request)
         let challenge = response.headers.get("WWW-Authenticate")
         if response.status == 403 && parseWwwAuthenticate(challenge).error == "insufficient_scope" {
+            response.body.cancel()
             _ = try await options.authentication?.unauthorized(challenge, authorization, request.signal)
             throw McpOAuthAuthorizationRequired()
         }
+        // Authentication uses the challenge header, never the rejected response body.
+        if response.status == 401 { response.body.cancel() }
         if response.status == 401, let auth = options.authentication,
            try await auth.unauthorized(challenge, authorization, request.signal) {
             try request.signal?.throwIfAborted()
@@ -75,6 +78,7 @@ public actor StreamableHttpTransport: McpTransport {
         guard payload.count <= options.maxMessageBytes else { throw PiError("MCP message exceeds size limit") }
         var headers = headers(); headers.set("Content-Type", "application/json")
         let response = try await fetchAuthenticated(.init(url: options.url, method: "POST", headers: headers, body: payload, signal: combined.signal))
+        defer { response.body.cancel() }
         guard !closed else { throw McpConnectionClosedError() }
         try await requireSuccess(response)
         if message["method"] == .string("initialize"), let id = response.headers.get("Mcp-Session-Id") { sessionId = id }
@@ -103,6 +107,7 @@ public actor StreamableHttpTransport: McpTransport {
                     attempt += 1
                 }
             }
+            defer { response.body.cancel() }
             // GET SSE is optional. A 404 with an established session means it has expired.
             if response.status == 405 || (response.status == 404 && sessionId == nil) { return }
             try await requireSuccess(response)
@@ -118,6 +123,7 @@ public actor StreamableHttpTransport: McpTransport {
     }
     private func requireSuccess(_ response: FetchResponse) async throws {
         guard response.ok else {
+            response.body.cancel()
             let error = McpHTTPError(status: response.status, authenticate: response.headers.get("WWW-Authenticate"))
             if response.status == 404 && sessionId != nil { await close() }
             throw error
@@ -129,12 +135,14 @@ public actor StreamableHttpTransport: McpTransport {
         return status == 408 || status == 429 || (status >= 500 && status != 501)
     }
     private func consume(_ initial: FetchResponse, signal: AbortSignal?, requestID: JsonValue?) async throws {
+        defer { initial.body.cancel() }
         let contentType = initial.headers.get("Content-Type")?.lowercased() ?? ""
         if contentType.contains("application/json") {
             var data = Data()
             for try await chunk in initial.body {
-                try signal?.throwIfAborted(); data.append(chunk)
-                guard data.count <= options.maxMessageBytes else { throw PiError("MCP message exceeds size limit") }
+                try signal?.throwIfAborted()
+                guard chunk.count <= options.maxMessageBytes - data.count else { throw PiError("MCP message exceeds size limit") }
+                data.append(chunk)
             }
             _ = try await deliver(String(decoding: data, as: UTF8.self))
             return
@@ -143,6 +151,8 @@ public actor StreamableHttpTransport: McpTransport {
         var response = initial
         var cursor: String?, retryMs: Int?, attempts = 0
         while !closed {
+            let currentBody = response.body
+            defer { currentBody.cancel() }
             var decoder = McpSSEDecoder(maxMessageBytes: options.maxMessageBytes)
             let openedAt = ContinuousClock.now
             do {
@@ -178,6 +188,7 @@ public actor StreamableHttpTransport: McpTransport {
                     response = try await fetchAuthenticated(.init(url: options.url, headers: headers, signal: signal))
                     try await requireSuccess(response)
                     guard response.headers.get("Content-Type")?.lowercased().contains("text/event-stream") == true else {
+                        response.body.cancel()
                         throw PiError("MCP resumed stream must use text/event-stream")
                     }
                     break
@@ -203,7 +214,8 @@ public actor StreamableHttpTransport: McpTransport {
             // Cleanup has its own short deadline: the lifetime signal has already been aborted.
             var cleanupHeaders = headers()
             if let lastAuthorization { cleanupHeaders.set("Authorization", lastAuthorization) }
-            _ = try? await options.fetch(.init(url: options.url, method: "DELETE", headers: cleanupHeaders, signal: AbortSignal.timeout(2_000), followRedirects: false))
+            let response = try? await options.fetch(.init(url: options.url, method: "DELETE", headers: cleanupHeaders, signal: AbortSignal.timeout(2_000), followRedirects: false))
+            response?.body.cancel()
         }
         await events?.onClose()
     }

@@ -73,6 +73,19 @@ private func matchesObject(_ actual: JsonValue?, _ expected: JsonValue) -> Bool 
 
 @Suite("Anthropic strict tool schemas")
 struct AnthropicStrictToolSchemaTests {
+    @Test("non-strict tools retain shared definitions without unsupported root unions", arguments: ["$defs", "definitions"])
+    func preservesSharedDefinitions(_ key: String) async throws {
+        let definitions: JsonValue = ["Value": ["type": "object", "properties": ["name": ["type": "string"]]]]
+        let parameters = object(["value": ["$ref": .string("#/\(key)/Value")]], extra: [
+            key: definitions, "anyOf": [["required": ["value"]]], "title": "Input",
+        ])
+        let tool = try await captureFirstTool(createTool(parameters))
+        #expect(tool["input_schema"]?[key] == definitions)
+        #expect(tool["input_schema"]?["properties"] == parameters["properties"])
+        #expect(tool["input_schema"]?["anyOf"] == nil)
+        #expect(tool["input_schema"]?["title"] == nil)
+    }
+
     @Test("only sends the full input schema for strict JSON-schema tools")
     func onlySendsFullSchemaForStrictTools() async throws {
         let legacyParameters = object(["value": ["type": "string"]], extra: ["additionalProperties": false, "title": "LookupInput"])

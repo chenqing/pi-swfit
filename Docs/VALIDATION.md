@@ -210,3 +210,13 @@ Native acceptance used a temporary workspace and a loopback SSE fixture: `pf` ma
 - Full `swift test`: every suite passed except `OpenAIChatGPTOAuthTests` (4 of 7 fail). The same 4 fail on the previous `main` (`75fb27d`) in a clean worktree, inside and outside the sandbox, so they are not caused by this sync.
 - Formal release `0.1.1 (2026103001)` was built from `41f9e79`, Developer ID signed with the existing designated requirement, notarized and stapled. App submission `0eb0f14c-9e64-4f5a-a8f8-b3ab49b3a17c`; DMG submission `41254cf9-a349-48b6-9ef7-f9e92fb1fd57`. Gatekeeper accepted both. SHA-256 `33b69061bfe86c880cc81fa6ab416d52c67246097a47da19207a9ca86550b775`.
 - Installed `/Applications/Pi Swift.app` after a normal quit and a backup of the previous app and agent directory under `~/.pagie-qa/pi-swift-backup-20261030`. The app relaunched, `pf --version` reports `pf 0.1.1`, and all six JSONL files are unchanged. No live provider request was made.
+
+
+## 0.1.2 — selective upstream sync, 2026-11-08
+
+- Reviewed upstream through `e49b1495045f06643a7cc4c93330fabc2ab37ce4`; the exact provider, session and MCP backports and deferred scope are in UPSTREAM.md.
+- Provider regressions first reproduced against the old implementation (11 assertions failed), then all 80 focused tests passed after the four provider fixes.
+- Final serial `swift test --no-parallel`: 1,220 tests reported across eight targets, zero failures; the disposable real-Keychain and signed codemode-helper cases remain skipped without opt-in/external setup. The seven OpenAIChatGPTOAuthTests pass in this environment. A clean CLI rebuild still emits the pre-existing Security.framework deprecation warning for `SecKeychainSetUserInteractionAllowed`; no new warning was introduced by this sync.
+- Regression coverage includes branch thinking persistence through reopen, no duplicate level entries, interrupted tool-result persistence before shutdown, prompt preflight versus navigation/reload, literal and escaped prompt arguments, HTTP JSON/SSE size limits and cancellation, CR/LF/CRLF framing, and descendants surviving a stdio parent's exit.
+- Real loopback Network.framework tests confirm explicit response cancellation closes the remote connection, and callback close drops spare browser sockets while completing an active response.
+- `scripts/smoke-cli.py`, `scripts/smoke-slash-navigation.py`, and `scripts/smoke-slash-resources.py` passed: real local SSE/tool execution, JSONL/resume, stdin/failure exits, PTY navigation and resource command expansion. Tests use synthetic transports and loopback fixtures, with no live provider billing or personal credentials.

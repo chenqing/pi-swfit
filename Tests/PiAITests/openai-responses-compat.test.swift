@@ -26,8 +26,9 @@ private func streamWithPayload(_ model: Model, _ context: TranscriptContext, _ c
 private func captureOpenAIResponseHeaders(_ model: Model = dModel("openai", "gpt-5.4"), _ configure: (inout StreamOptions) -> Void) async -> (CapturedAffinity, JsonValue?) {
     let (payload, recorder, _) = await streamWithPayload(model, dUserContext(), configure)
     let request = recorder.last
+    #expect(request?.header("session_id") == nil)
     return (CapturedAffinity(
-        sessionId: request?.header("session_id"),
+        sessionId: request?.header("session-id"),
         clientRequestId: request?.header("x-client-request-id"),
         xSessionId: request?.header("x-session-id")
     ), payload)
@@ -175,7 +176,7 @@ private func captureOpenAIResponseHeaders(_ model: Model = dModel("openai", "gpt
     @Test func letsExplicitHeadersOverrideTheDefaultCacheAffinityHeaders() async {
         let (captured, _) = await captureOpenAIResponseHeaders {
             $0.sessionId = "session-123"
-            $0.headers = [("session_id", "override-session"), ("x-client-request-id", "override-request")]
+            $0.headers = [("session-id", "override-session"), ("x-client-request-id", "override-request")]
         }
         #expect(captured.sessionId == "override-session")
         #expect(captured.clientRequestId == "override-request")

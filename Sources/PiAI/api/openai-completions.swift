@@ -147,6 +147,7 @@ public struct ResolvedOpenAICompletionsCompat: Sendable {
     public var maxTokensField: MaxTokensField
     public var requiresToolResultName: Bool
     public var requiresAssistantAfterToolResult: Bool
+    public var requiresToolsWithToolHistory: Bool
     public var requiresThinkingAsText: Bool
     public var requiresReasoningContentOnAssistantMessages: Bool
     public var thinkingFormat: ThinkingFormat
@@ -177,6 +178,7 @@ public struct ResolvedOpenAICompletionsCompat: Sendable {
         maxTokensField: MaxTokensField = .maxCompletionTokens,
         requiresToolResultName: Bool = false,
         requiresAssistantAfterToolResult: Bool = false,
+        requiresToolsWithToolHistory: Bool = false,
         requiresThinkingAsText: Bool = false,
         requiresReasoningContentOnAssistantMessages: Bool = false,
         thinkingFormat: ThinkingFormat = .openai,
@@ -205,6 +207,7 @@ public struct ResolvedOpenAICompletionsCompat: Sendable {
         self.maxTokensField = maxTokensField
         self.requiresToolResultName = requiresToolResultName
         self.requiresAssistantAfterToolResult = requiresAssistantAfterToolResult
+        self.requiresToolsWithToolHistory = requiresToolsWithToolHistory
         self.requiresThinkingAsText = requiresThinkingAsText
         self.requiresReasoningContentOnAssistantMessages = requiresReasoningContentOnAssistantMessages
         self.thinkingFormat = thinkingFormat
@@ -915,7 +918,7 @@ private func buildParams(
         if compat.zaiToolStream {
             params["tool_stream"] = true
         }
-    } else if hasToolHistory(context.messages) {
+    } else if compat.requiresToolsWithToolHistory && hasToolHistory(context.messages) {
         // Anthropic (via LiteLLM/proxy) requires tools param when conversation has tool_calls/tool_results
         tools = []
         params["tools"] = .array([])
@@ -1718,6 +1721,7 @@ private func detectCompat(_ model: Model) -> ResolvedOpenAICompletionsCompat {
         maxTokensField: useMaxTokens ? .maxTokens : .maxCompletionTokens,
         requiresToolResultName: false,
         requiresAssistantAfterToolResult: false,
+        requiresToolsWithToolHistory: false,
         requiresThinkingAsText: false,
         requiresReasoningContentOnAssistantMessages: isDeepSeek,
         thinkingFormat: isDeepSeek
@@ -1775,6 +1779,7 @@ private func getCompat(_ model: Model) -> ResolvedOpenAICompletionsCompat {
         requiresToolResultName: compat.requiresToolResultName ?? detected.requiresToolResultName,
         requiresAssistantAfterToolResult:
             compat.requiresAssistantAfterToolResult ?? detected.requiresAssistantAfterToolResult,
+        requiresToolsWithToolHistory: compat.requiresToolsWithToolHistory ?? detected.requiresToolsWithToolHistory,
         requiresThinkingAsText: compat.requiresThinkingAsText ?? detected.requiresThinkingAsText,
         requiresReasoningContentOnAssistantMessages:
             compat.requiresReasoningContentOnAssistantMessages ??

@@ -343,7 +343,7 @@ private func createClient(
             assignHeaders(&headers, [("x-session-id", sessionId)])
         } else {
             if compat.sessionAffinityFormat == .openai {
-                assignHeaders(&headers, [("session_id", sessionId)])
+                assignHeaders(&headers, [("session-id", sessionId)])
             }
             assignHeaders(&headers, [("x-client-request-id", sessionId)])
         }

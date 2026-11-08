@@ -1849,11 +1849,15 @@ private func convertTools(
         }
         let parameters = try getJsonSchemaToolParameters(tool, strict)
         let schema = parameters.objectValue ?? JsonObject()
-        let legacyInputSchema: JsonObject = [
+        var legacyInputSchema: JsonObject = [
             "type": "object",
             "properties": schema["properties"].flatMap { $0.isNull ? nil : $0 } ?? .object(JsonObject()),
             "required": schema["required"].flatMap { $0.isNull ? nil : $0 } ?? .array([]),
         ]
+        // Preserve shared definitions referenced by properties; root unions remain unsupported.
+        for key in ["$defs", "definitions"] {
+            if let value = schema[key] { legacyInputSchema[key] = value }
+        }
         var inputSchema: JsonObject
         if strict == true {
             inputSchema = schema

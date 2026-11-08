@@ -103,6 +103,8 @@ let RETRYABLE_PROVIDER_ERROR_PATTERN = buildProviderErrorPattern([
     // Codex CLI mid-stream disconnect, relayed by proxies that wrap the Codex CLI,
     // e.g. "stream disconnected before completion: stream closed before response.completed" (#11057).
     "stream disconnected before completion",
+    // Magpie gateway relaying an interrupted upstream Anthropic reply (#11879).
+    "cut short after the reply had begun",
     // Node ERR_HTTP2_STREAM_CANCEL: the HTTP/2 session died before the request was
     // sent, e.g. after the Bedrock SDK's 5-minute session timeout (#10379).
     "pending stream has been canceled",

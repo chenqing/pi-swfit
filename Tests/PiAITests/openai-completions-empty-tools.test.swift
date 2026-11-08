@@ -149,14 +149,16 @@ struct OpenAICompletionsEmptyToolsTests {
         }
     }
 
-    @Test("still emits tools: [] for Anthropic/LiteLLM proxy when conversation has tool history")
-    func toolHistoryKeepsEmptyTools() async throws {
+    @Test("tool history omits empty tools unless the legacy proxy compatibility flag is enabled", arguments: [false, true])
+    func toolHistoryEmptyToolsCompatibility(_ legacyProxy: Bool) async throws {
         let messages = cMessages(#"""
         [{"role":"user","content":"use the tool"},
          {"role":"assistant","content":[{"type":"toolCall","id":"t1","name":"noop","arguments":{}}],"stopReason":"toolUse","api":"openai-completions","provider":"openai","model":"gpt-4o-mini"},
          {"role":"toolResult","toolCallId":"t1","toolName":"noop","content":[{"type":"text","text":"done"}],"isError":false}]
         """#)
-        let run = try await cRunSimple(baseModel(), Context(messages: messages, tools: []))
-        #expect(run.payload["tools"] == [])
+        var model = baseModel()
+        if legacyProxy { model.compat = ["requiresToolsWithToolHistory": true] }
+        let run = try await cRunSimple(model, Context(messages: messages, tools: []))
+        #expect(run.payload["tools"] == (legacyProxy ? .array([]) : nil))
     }
 }

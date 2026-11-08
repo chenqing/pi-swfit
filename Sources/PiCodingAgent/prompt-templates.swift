@@ -31,17 +31,28 @@ public struct LoadPromptTemplatesOptions: Sendable {
     }
 }
 
-/// Matches upstream's simple quoting rules; this is not shell evaluation or escaping.
+/// Upstream argument quoting, including literal apostrophes and escaped quote characters.
 public func parseCommandArgs(_ input: String) -> [String] {
+    let characters = Array(input)
     var args: [String] = [], current = "", hasToken = false
     var quote: Character?
-    for character in input {
+    var quoteStart = 0, index = 0
+    while index < characters.count {
+        let character = characters[index]
         if let active = quote {
-            if character == active { quote = nil } else { current.append(character) }
-        } else if character == "\"" || character == "'" { quote = character; hasToken = true }
-        else if character.isWhitespace {
+            if character == "\\", index + 1 < characters.count, characters[index + 1] == active {
+                current.append(active); index += 1
+            } else if character == active { quote = nil }
+            else { current.append(character) }
+        } else if (character == "\"" || character == "'") && !hasToken {
+            quote = character; quoteStart = index; hasToken = true
+        } else if character.isWhitespace {
             if hasToken { args.append(current); current = ""; hasToken = false }
         } else { current.append(character); hasToken = true }
+        if quote != nil && index == characters.count - 1 {
+            quote = nil; current = String(characters[quoteStart]); index = quoteStart
+        }
+        index += 1
     }
     if hasToken { args.append(current) }
     return args

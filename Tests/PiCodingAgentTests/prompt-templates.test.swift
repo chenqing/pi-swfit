@@ -7,9 +7,15 @@ import PiAI
 struct PromptTemplateTests {
     @Test func quotesAndEmptyArgumentsMatchUpstream() {
         #expect(parseCommandArgs("one \"two three\" '' four") == ["one", "two three", "", "four"])
-        #expect(parseCommandArgs("ab\"cd ef\"gh '\"quoted\"' \"unfinished") == ["abcd efgh", "\"quoted\"", "unfinished"])
+        #expect(parseCommandArgs("ab\"cd ef\"gh '\"quoted\"' \"unfinished") == ["ab\"cd", "ef\"gh", "\"quoted\"", "\"unfinished"])
         #expect(parseCommandArgs("中文\n🎉\tcafé") == ["中文", "🎉", "café"])
         #expect(parseCommandArgs(#"a\b \"#) == [#"a\b"#, #"\"#])
+    }
+    @Test func apostrophesUnclosedQuotesAndEscapes() {
+        #expect(parseCommandArgs("why doesn't the user's cache work") == ["why", "doesn't", "the", "user's", "cache", "work"])
+        #expect(parseCommandArgs("'tis the season") == ["'tis", "the", "season"])
+        #expect(parseCommandArgs(#""quoted \"text\"" 'it\'s here'"#) == ["quoted \"text\"", "it's here"])
+        #expect(parseCommandArgs(#""C:\dir\file" '\\server\share'"#) == [#"C:\dir\file"#, #"\\server\share"#])
     }
     @Test func replacementIsSinglePassAndPreservesLiteralValues() {
         #expect(substituteArgs("$1: $@ ($ARGUMENTS)", ["$2", "$ARGUMENTS"]) == "$2: $2 $ARGUMENTS ($2 $ARGUMENTS)")

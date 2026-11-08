@@ -542,12 +542,25 @@ public final class AgentSession: @unchecked Sendable {
 
     /// Preferred over dispose() when the caller must wait for MCP process/socket cleanup.
     public func shutdown() async {
+        // Keep persistence listeners connected until aborted tools have emitted their results.
+        await abort()
         dispose()
         await extensionRunner?.shutdown()
         await agent.waitForIdle()
     }
 
-    // Not ported: modelRuntime, _getRequiredRequestAuth, _recordSelection.
+    // Not ported: modelRuntime, _getRequiredRequestAuth, virtual model selection.
+
+    /// Record the live level on this branch before prompting, matching upstream 7860ff528.
+    private func _recordThinkingLevel() async throws {
+        guard let entry = sessionManager.getBranch().last(where: { $0.type == "thinking_level_change" }),
+              case .thinkingLevelChange(let recorded) = entry,
+              let level = ModelThinkingLevel(rawValue: recorded.thinkingLevel) else { return }
+        let state = await agent.state
+        // A requested level clamped by this model must not be overwritten on every prompt.
+        guard clampThinkingLevel(state.model, level) != state.thinkingLevel else { return }
+        try sessionManager.appendThinkingLevelChange(state.thinkingLevel.rawValue)
+    }
 
     /**
      * The model whose limits apply to `message`, or undefined when the message came from another
@@ -1056,9 +1069,10 @@ public final class AgentSession: @unchecked Sendable {
 
         // Compaction before the prompt may have scheduled a retry; the new prompt replaces it.
         _state.withLock { $0.failedResponse = nil }
-        // Not ported: _recordSelection, pending tool names.
+        // Not ported: virtual model selection, pending tool names.
         var runError: (any Error)?
         do {
+            try await _recordThinkingLevel()
             try await agent.prompt(messages)
             while !abortRequested {
                 if try await _handlePostAgentRun() {

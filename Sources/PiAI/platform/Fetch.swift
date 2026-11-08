@@ -73,7 +73,16 @@ public struct FetchRequest: Sendable {
 public struct ResponseBody: AsyncSequence, Sendable {
     public typealias Element = Data
     let stream: AsyncThrowingStream<Data, any Error>
-    public init(_ stream: AsyncThrowingStream<Data, any Error>) { self.stream = stream }
+    private let cancelImpl: @Sendable () -> Void
+    private let cancelled = Locked(false)
+    public init(_ stream: AsyncThrowingStream<Data, any Error>, cancel: @escaping @Sendable () -> Void = {}) {
+        self.stream = stream; self.cancelImpl = cancel
+    }
+    /// Release a response that will not be consumed to EOF (size limit, protocol error or early result).
+    public func cancel() {
+        let first = cancelled.withLock { value in let first = !value; value = true; return first }
+        if first { cancelImpl() }
+    }
     public static func data(_ data: Data) -> ResponseBody {
         ResponseBody(AsyncThrowingStream { c in
             if !data.isEmpty { c.yield(data) }
@@ -253,7 +262,10 @@ final class URLSessionFetch: NSObject, URLSessionDataDelegate, @unchecked Sendab
             for (key, value) in http?.allHeaderFields ?? [:] {
                 if let key = key as? String { headers.append(key, "\(value)") }
             }
-            let fetchResponse = FetchResponse(status: http?.statusCode ?? 0, headers: headers, url: response.url, body: ResponseBody(entry.stream))
+            let fetchResponse = FetchResponse(status: http?.statusCode ?? 0, headers: headers, url: response.url, body: ResponseBody(entry.stream, cancel: { [weak self] in
+                self?.fail(taskID, AbortError())
+                dataTask.cancel()
+            }))
             return (continuation, fetchResponse)
         }
         completionHandler(.allow)

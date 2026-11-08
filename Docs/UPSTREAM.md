@@ -11,6 +11,7 @@ Pi Swift is a **selective community port** of [earendil-works/pi](https://github
 | Incremental JSON parsing and client identity | `d5b3de22d0e24a3e9c38a9410d3329b099717283` |
 | Standalone source review, 2026-10-28 | `4ba356228c7fea1524413b1d56f9a31351329575` |
 | pi-ai provider fixes, 2026-10-30 | `f09d01b85` |
+| Selective provider/session/MCP sync, 2026-11-08 | commits listed below, reviewed through `e49b1495045f06643a7cc4c93330fabc2ab37ce4` |
 
 `upstream-reference.json` preserves the resource/MCP source blob inventory. `upstream-lock.json` records the reviewed head and exact hashes of selected API/session/CLI/tool sources. These files distinguish a reviewed source from an implemented feature.
 
@@ -85,3 +86,21 @@ Reviewed `aee933269ba79b84e7b7454097c1d4c426021d82`: prompt-template parsing/sub
 ## Native interactive command feedback — 2026-10-29
 
 Desktop and interactive pf explicitly opt into `PromptOptions.strictSkillCommands`, a Swift-native adaptation at the existing post-input-hook expansion boundary. A missing/unreadable skill fails before transcript insertion and provider execution. The option defaults to false, preserving the pinned upstream-compatible SDK literal fallback, extension precedence, and noninteractive pf behavior. Shared host presentation classifies compaction no-ops without changing runtime retention policy or errors.
+
+## Selective provider, session and MCP sync — 2026-11-08
+
+Pi Swift 0.1.2 selectively backports the following changes. This does not upgrade the entire runtime to upstream v1.5.0; `PI_AI_VERSION` remains 1.3.0 and the original source inventories remain unchanged.
+
+- `c5d397835`: OpenAI Responses uses `session-id`, not the proxy-sensitive `session_id` header. Explicit overrides, OpenRouter and no-session formats remain covered. Chat Completions still uses its original header.
+- `4a6a58eb5`: Anthropic non-strict tool schemas preserve root `$defs` and `definitions` referenced by properties. Unsupported root unions remain excluded.
+- `7a6bd5a97`: Chat Completions omits empty tools even with tool history. Set `compat.requiresToolsWithToolHistory: true` for legacy proxies requiring `tools: []`.
+- `566344046`: retry classification recognizes the specific Magpie interrupted-reply wording, without broadly matching unrelated “cut short” errors.
+- `7860ff528`: before a new prompt, record the live thinking level on the selected branch when it differs from that branch's effective level. A model-clamped requested level is preserved; virtual-model selection remains unported.
+- `96667f342`: prompt arguments retain apostrophes inside words, handle escaped quotes inside quoted arguments, and preserve unmatched quotes as literal text.
+- `7a53c310a`: awaited session shutdown aborts and settles tools before disconnecting persistence listeners, so interrupted tool calls retain their results in JSONL. Synchronous `dispose()` remains immediate; hosts should await `shutdown()`.
+- `f40984747`, `4a8b60bc3`: HTTP bodies are explicitly cancelled on protocol/size failure and early completion. JSON size was already bounded, and is now checked before appending a chunk. Native `ResponseBody.cancel()` terminates its URLSession transfer; tests exercise a real loopback connection as well as fake JSON/SSE transports. Error bodies are not read by the native MCP transport.
+- `63ea042ce`: native callback-server close cancels unused browser connections while allowing an active callback to finish sending its response. This adapts the upstream cleanup to Network.framework, where completing the callback and sending its page are separate operations.
+
+Reviewed protections already present in Swift: `42849bb84` (stdio descendants after parent exit), `b64e6badd` (CR/LF/CRLF SSE framing), and `8a3e163b0` / `c3b938e3e` (prompt preparation, tree navigation and resource reload cannot overlap). Added or extended regression coverage for those paths.
+
+Deferred scope: the upstream MCP OAuth module move, PipeTransport and application-supplied HTTPS callback APIs are not ported; the native implementation remains loopback-only. pi-schema/TypeBox migration, Node import changes, model catalog updates, TUI, Chord, p2 and p3 are outside this release. Other post-baseline changes have not been claimed as implemented.
