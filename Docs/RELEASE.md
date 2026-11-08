@@ -15,11 +15,11 @@ Each build targets the current Mac's architecture; it is not a universal binary.
 Drag the app from the DMG into `/Applications`. Its CLI is `/Applications/Pi Swift.app/Contents/MacOS/pf`. The production bundle identifier is `dev.chenqing.pi-swift`; a separately identified QA app can coexist. The normal data directory is `~/.pf/agent`. A QA directory selected with `PF_AGENT_DIR` is not automatically migrated, and no user data or credentials are included in the package.
 
 
-## Local release 0.1.2
+## Published release 0.1.2
 
-Version `0.1.2 (2026110801)` was built from `1d5880f5d58e69c62ed913ddccd4111d2c4e419d`, signed, notarized and installed on 2026-11-08. It includes the selective provider, session and MCP fixes documented in UPSTREAM.md. The notarized Apple Silicon DMG and checksum are under `.build/releases/0.1.2-2026110801-arm64/`; a copy is in Downloads. This local release has not been published to GitHub Releases.
+[Pi Swift v0.1.2](https://github.com/chenqing/pi-swfit/releases/tag/v0.1.2), build `2026110801`, was built from `1d5880f5d58e69c62ed913ddccd4111d2c4e419d`, signed, notarized and installed on 2026-11-08. It includes the selective provider, session and MCP fixes documented in UPSTREAM.md. The GitHub release includes the notarized Apple Silicon DMG, `SHA256SUMS`, and update notes. Its tag points to the binary’s source commit. A fresh download matched the validated local package. Local artifacts remain under `.build/releases/0.1.2-2026110801-arm64/`, with a DMG copy in Downloads.
 
-## Published release
+## Earlier releases
 
 [Pi Swift v0.1.1](https://github.com/chenqing/pi-swfit/releases/tag/v0.1.1) distributes build `2026103001` (source `41f9e79`) with the pi-ai provider sync. Earlier:
 
